@@ -34,14 +34,12 @@ nonisolated enum PDFExporter {
 
     static func export(
         _ doc: MarkdownDocument,
-        pinkLabel: String? = nil,
-        blueLabel: String? = nil
+        labels: ColorRuleSnapshot? = nil
     ) throws -> URL {
 
         let attr = buildAttributedString(
             from: doc,
-            pinkLabel: pinkLabel,
-            blueLabel: blueLabel
+            labels: labels
         )
 
         let pageBounds = CGRect(origin: .zero, size: pageSize)
@@ -94,8 +92,7 @@ nonisolated enum PDFExporter {
 
     private static func buildAttributedString(
         from doc: MarkdownDocument,
-        pinkLabel: String?,
-        blueLabel: String?
+        labels: ColorRuleSnapshot?
     ) -> NSAttributedString {
         let out = NSMutableAttributedString()
 
@@ -123,8 +120,7 @@ nonisolated enum PDFExporter {
             out.append(NSAttributedString(string: "추가 메모\n\n", attributes: subTitleAttrs()))
 
             if !doc.pinkItems.isEmpty {
-                let label = pinkLabel?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
-                    ?? "보충 (분홍)"
+                let label = supplementaryLabel(for: .pink, snapshot: labels)
                 out.append(NSAttributedString(string: "\(label)\n", attributes: emphAttrs()))
                 for item in doc.pinkItems {
                     out.append(bullet(text: item.text, color: .pink))
@@ -133,8 +129,7 @@ nonisolated enum PDFExporter {
             }
 
             if !doc.blueItems.isEmpty {
-                let label = blueLabel?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
-                    ?? "참고 (파랑)"
+                let label = supplementaryLabel(for: .blue, snapshot: labels)
                 out.append(NSAttributedString(string: "\(label)\n", attributes: emphAttrs()))
                 for item in doc.blueItems {
                     out.append(bullet(text: item.text, color: .blue))
@@ -148,6 +143,25 @@ nonisolated enum PDFExporter {
         out.append(NSAttributedString(string: footerText(for: doc), attributes: footerAttrs()))
 
         return out
+    }
+
+    // MARK: - 라벨 폴백
+
+    /// MarkdownExporter.labelFor와 동일한 의미.
+    /// nonisolated 영역에서 호출하기 위해 ColorRuleStore를 직접 부르지 않는다.
+    private static func supplementaryLabel(
+        for color: ColorCategory,
+        snapshot: ColorRuleSnapshot?
+    ) -> String {
+        let trimmed = snapshot?.label(for: color)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        if let trimmed, !trimmed.isEmpty { return trimmed }
+        switch color {
+        case .yellow: return "핵심"
+        case .orange: return "주제"
+        case .pink:   return "보충 (분홍)"
+        case .blue:   return "참고 (파랑)"
+        }
     }
 
     // MARK: - 글머리표 한 줄
@@ -302,6 +316,3 @@ nonisolated enum PDFExporter {
     }
 }
 
-private extension String {
-    nonisolated var nonEmpty: String? { isEmpty ? nil : self }
-}

@@ -22,6 +22,7 @@ struct RecentNotesView: View {
     @State private var renamingNote: Note?
     @State private var editingTitle: String = ""
     @State private var deleteTarget: Note?
+    @State private var activeError: LumarkError?
 
     enum SortOption: String, CaseIterable, Identifiable {
         case recent = "최근"
@@ -82,6 +83,7 @@ struct RecentNotesView: View {
             )
             .presentationDetents([.height(220)])
         }
+        .errorAlert(error: $activeError)
     }
 
     // MARK: - 목록
@@ -215,23 +217,40 @@ struct RecentNotesView: View {
     }
 
     // MARK: - CRUD
+    //
+    // spec §8 "데이터 절대 안 잃음" — save 실패는 silent 처리 금지.
+    // ResultView도 같은 패턴(errorAlert)으로 통일.
 
     private func delete(_ note: Note) {
         modelContext.delete(note)
-        try? modelContext.save()
+        do {
+            try modelContext.save()
+        } catch {
+            activeError = .wrapped(code: "DELETE", message: "삭제 실패: \(error.localizedDescription)")
+        }
     }
 
     private func rename(_ note: Note, to newTitle: String) {
         let trimmed = newTitle.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
         note.title = trimmed
-        try? modelContext.save()
+        do {
+            try modelContext.save()
+        } catch {
+            activeError = .wrapped(code: "RENAME", message: "이름 변경 실패: \(error.localizedDescription)")
+        }
     }
 
     private func toggleFavorite(_ note: Note) {
         note.isFavorite.toggle()
-        try? modelContext.save()
-        UISelectionFeedbackGenerator().selectionChanged()
+        do {
+            try modelContext.save()
+            UISelectionFeedbackGenerator().selectionChanged()
+        } catch {
+            // 토글은 되돌리고 사용자에게 알림
+            note.isFavorite.toggle()
+            activeError = .wrapped(code: "FAV", message: "즐겨찾기 저장 실패: \(error.localizedDescription)")
+        }
     }
 }
 

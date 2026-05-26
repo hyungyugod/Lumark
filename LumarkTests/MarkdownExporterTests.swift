@@ -92,7 +92,11 @@ struct MarkdownExporterTests {
             originalFilename: nil
         )
 
-        let out = MarkdownExporter.export(doc, pinkLabel: "주의", blueLabel: "출처")
+        let labels = ColorRuleSnapshot(
+            enabled: [:],
+            labels: [.pink: "주의", .blue: "출처"]
+        )
+        let out = MarkdownExporter.export(doc, labels: labels)
         #expect(out.contains("### 추가 메모"))
         #expect(out.contains("**주의**"))
         #expect(out.contains("**출처**"))
@@ -112,7 +116,12 @@ struct MarkdownExporterTests {
             originalFilename: nil
         )
 
-        let out = MarkdownExporter.export(doc, pinkLabel: "  ", blueLabel: nil)
+        // pink는 공백, blue는 미지정 → 둘 다 폴백
+        let labels = ColorRuleSnapshot(
+            enabled: [:],
+            labels: [.pink: "  "]
+        )
+        let out = MarkdownExporter.export(doc, labels: labels)
         #expect(out.contains("**보충 (분홍)**"))
     }
 
@@ -180,7 +189,7 @@ struct MarkdownExporterTests {
         let n = Note(
             title: "항생제정리",
             createdAt: fixedDate("2026-05-24"),
-            sourceType: "pdf",
+            source: .pdf,
             pageCount: 2,
             originalFilename: "항생제정리.pdf"
         )

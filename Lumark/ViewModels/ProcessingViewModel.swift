@@ -62,14 +62,35 @@ final class ProcessingViewModel {
     /// JobStateStore와 매핑된 ID. nil이면 영속화 비활성.
     var jobID: UUID? = nil
 
+    /// 입력 소스. 현재 Mock 단계에서는 미사용. Day 5+ 실제 파이프라인 연결 시
+    /// PageRenderer → HighlightDetector → OCRService에 전달되는 입구.
+    let source: JobSource?
+
     // MARK: - 내부
 
     private var task: Task<Void, Never>?
     private let bgExtender = BackgroundTaskExtender()
 
-    init(totalPages: Int, jobID: UUID? = nil) {
+    /// JobStateStore에서 복원해 온 마지막 진행 상태. Mock에서는 currentPage/Stage를
+    /// 초기 표시값으로만 활용. 실제 파이프라인에서는 여기서부터 이어 시작.
+    private let resumeFrom: JobState?
+
+    init(
+        totalPages: Int,
+        source: JobSource? = nil,
+        jobID: UUID? = nil,
+        resumeFrom: JobState? = nil
+    ) {
         self.totalPages = totalPages
+        self.source = source
         self.jobID = jobID
+        self.resumeFrom = resumeFrom
+
+        // 재개 진입의 초기 표시값
+        if let r = resumeFrom {
+            self.currentStage = Stage(rawValue: r.stageRaw) ?? .splittingPages
+            self.currentPage = r.currentPage
+        }
     }
 
     // MARK: - 제어
@@ -77,19 +98,23 @@ final class ProcessingViewModel {
     func start() {
         guard phase != .running else { return }
         phase = .running
-        currentPage = 0
-        currentStage = .splittingPages
-        overallProgress = 0
+        // 재개 진입이면 표시 상태를 유지, 아니면 초기화.
+        if resumeFrom == nil {
+            currentPage = 0
+            currentStage = .splittingPages
+            overallProgress = 0
+        }
         bgExtender.begin(name: "lumark.processing")
         task?.cancel()
         task = Task { await runMock() }
     }
 
+    /// 취소 — 진행 작업 중단 + 상태 반영. JobStateStore 정리는 호출자(view)가 담당.
+    /// (lifecycle 종료 책임의 단일화 — finalizeJob에서 호출.)
     func cancel() {
         task?.cancel()
         phase = .cancelled
         bgExtender.end()
-        if let jobID { JobStateStore.shared.finish(id: jobID) }
     }
 
     private func persistProgress() {
@@ -134,7 +159,7 @@ final class ProcessingViewModel {
         resultNote = MockData.antibioticsNote()
         phase = .finished
         bgExtender.end()
-        if let jobID { JobStateStore.shared.finish(id: jobID) }
+        // JobStateStore.finish는 view layer(finalizeJob)에서 단일 호출.
     }
 
     /// stage 시작 시점의 누적 진행률 기준값

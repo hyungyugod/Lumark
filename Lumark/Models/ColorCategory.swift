@@ -7,13 +7,13 @@
 
 import SwiftUI
 
-enum ColorCategory: String, Codable, CaseIterable, Identifiable {
+enum ColorCategory: String, Codable, Sendable, CaseIterable, Identifiable {
     case yellow, orange, pink, blue
 
-    var id: String { rawValue }
+    nonisolated var id: String { rawValue }
 
     /// 기본 라벨 (사용자가 SettingsView에서 변경 가능)
-    var defaultLabel: String {
+    nonisolated var defaultLabel: String {
         switch self {
         case .yellow: return "핵심"
         case .orange: return "주제"
@@ -23,7 +23,7 @@ enum ColorCategory: String, Codable, CaseIterable, Identifiable {
     }
 
     /// v0.1 기본 활성 여부
-    var defaultEnabled: Bool {
+    nonisolated var defaultEnabled: Bool {
         switch self {
         case .yellow, .orange: return true
         case .pink, .blue:     return false

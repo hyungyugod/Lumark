@@ -25,10 +25,20 @@ struct ProcessingView: View {
         totalPages: Int,
         filename: String,
         jobID: UUID? = nil,
+        source: JobSource? = nil,
         onCancel: @escaping () -> Void,
         onFinish: @escaping (Note) -> Void
     ) {
-        self._vm = State(initialValue: ProcessingViewModel(totalPages: totalPages, jobID: jobID))
+        // 재개 가능한 잡이면 마지막 진행 상태를 복원해 vm에 주입.
+        let resume = jobID.flatMap { id in
+            JobStateStore.shared.jobs.first { $0.id == id }
+        }
+        self._vm = State(initialValue: ProcessingViewModel(
+            totalPages: totalPages,
+            source: source,
+            jobID: jobID,
+            resumeFrom: resume
+        ))
         self.filename = filename
         self.jobID = jobID
         self.onCancel = onCancel

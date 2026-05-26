@@ -32,7 +32,7 @@ enum MockData {
         let note = Note(
             title: "항생제정리",
             createdAt: dateOf("2026-05-24"),
-            sourceType: "pdf",
+            source: .pdf,
             pageCount: 4,
             originalFilename: "항생제정리.pdf"
         )
@@ -120,7 +120,7 @@ enum MockData {
         let note = Note(
             title: title,
             createdAt: dateOf(date),
-            sourceType: "pdf",
+            source: .pdf,
             pageCount: pageCount
         )
         // 색 dot 표시용으로 각 색마다 한 페이지에 한 하이라이트씩

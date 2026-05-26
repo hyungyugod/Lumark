@@ -88,6 +88,13 @@ struct HomeView: View {
             .sheet(isPresented: $showingSettings) {
                 SettingsView()
             }
+            // SettingsView에서 "처음 안내 다시 보기"를 누르면 UserDefaults 플래그가
+            // false로 리셋된 채로 dismiss된다. dismiss를 감지해 onboarding 다시 띄움.
+            .onChange(of: showingSettings) { _, isPresented in
+                if !isPresented && !UserDefaults.standard.hasOnboarded {
+                    showingOnboarding = true
+                }
+            }
             .sheet(isPresented: $showingOnboarding) {
                 OnboardingSheet { showingOnboarding = false }
             }
@@ -161,12 +168,13 @@ struct HomeView: View {
                     totalPages: job.totalPages,
                     filename: job.filename,
                     jobID: jobID,
+                    source: job.source,
                     onCancel: {
-                        JobStateStore.shared.finish(id: jobID)
+                        finalizeJob(jobID, success: false)
                         path.removeAll()
                     },
                     onFinish: { note in
-                        JobStateStore.shared.finish(id: jobID)
+                        finalizeJob(jobID, success: true)
                         openFreshResult(note)
                     }
                 )
@@ -188,6 +196,18 @@ struct HomeView: View {
                 openExistingNote(note)
             }
         }
+    }
+
+    /// 잡 종료 시 공통 정리: JobStateStore에서 제거 + Share Extension inbox 정리.
+    /// `JobStateStore.finish`의 단일 호출 지점을 view layer로 통일한다.
+    /// (ProcessingViewModel은 진행 상태 update만 담당, lifecycle 종료는 view가 결정.)
+    private func finalizeJob(_ jobID: UUID, success: Bool) {
+        JobStateStore.shared.finish(id: jobID)
+        if let inboxID = jobs[jobID]?.inboxID {
+            AppGroup.cleanup(id: inboxID)
+        }
+        jobs.removeValue(forKey: jobID)
+        _ = success // (현재는 분기 동일, 향후 telemetry 등을 위한 자리)
     }
 
     private var missingJobFallback: some View {
@@ -475,13 +495,19 @@ struct HomeView: View {
         return dest
     }
 
-    private func startProcessing(filename: String, totalPages: Int, source: JobSource) {
+    private func startProcessing(
+        filename: String,
+        totalPages: Int,
+        source: JobSource,
+        inboxID: UUID? = nil
+    ) {
         let id = UUID()
         let job = PendingJob(
             id: id,
             filename: filename,
             totalPages: totalPages,
-            source: source
+            source: source,
+            inboxID: inboxID
         )
         jobs[id] = job
 
@@ -511,7 +537,8 @@ struct HomeView: View {
             totalPages: totalPages,
             stagedURL: stagedURL,
             imageDataPath: imageDataPath,
-            isPDF: isPDF
+            isPDF: isPDF,
+            inboxID: inboxID
         ))
 
         path = [.processing(jobID: id)]
@@ -538,12 +565,14 @@ struct HomeView: View {
             return
         }
 
-        // PendingJob 재구성 후 ProcessingView 진입
+        // PendingJob 재구성 후 ProcessingView 진입. JobState에 영속화된
+        // inboxID를 그대로 복원해, 재개 후 종료 시점에도 inbox cleanup 가능.
         jobs[job.id] = PendingJob(
             id: job.id,
             filename: job.filename,
             totalPages: job.totalPages,
-            source: source
+            source: source,
+            inboxID: job.inboxID
         )
         path = [.processing(jobID: job.id)]
     }
@@ -581,14 +610,14 @@ struct HomeView: View {
                 }
             }
 
+            // inboxID를 PendingJob에 묶어두고 cleanup은 processing 완료/취소 시점에.
+            // (finalizeJob에서 AppGroup.cleanup 호출)
             startProcessing(
                 filename: meta.originalFilename,
                 totalPages: pageCount,
-                source: source
+                source: source,
+                inboxID: id
             )
-
-            // 처리 시작 시점에는 cleanup 보류 — processing 끝난 후 cleanup.
-            // (v0.2: SwiftData에 inboxID 같이 저장해서 처리 완료 시점 추적)
         } catch {
             activeError = .wrapped(code: "INBOX-LOAD", message: error.localizedDescription)
         }

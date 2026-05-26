@@ -16,6 +16,10 @@ struct MarkdownBodyView: View {
     let document: MarkdownDocument
     /// 색별 ON/OFF 상태. true = 보임, false = dim
     let chips: [ColorCategory: Bool]
+    /// 분홍·파랑 "추가 메모" 헤더 라벨 (ColorRuleStore에서 주입).
+    /// nil/공백이면 색별 기본 폴백.
+    var pinkLabel: String? = nil
+    var blueLabel: String? = nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -75,13 +79,13 @@ struct MarkdownBodyView: View {
 
                 if !document.pinkItems.isEmpty {
                     supplementaryGroup(
-                        label: "보충 (분홍)",
+                        label: resolveLabel(pinkLabel, fallback: "보충 (분홍)"),
                         items: document.pinkItems
                     )
                 }
                 if !document.blueItems.isEmpty {
                     supplementaryGroup(
-                        label: "참고 (파랑)",
+                        label: resolveLabel(blueLabel, fallback: "참고 (파랑)"),
                         items: document.blueItems
                     )
                     .padding(.top, Space.s3)
@@ -122,6 +126,12 @@ struct MarkdownBodyView: View {
         }
         .opacity(on ? 1.0 : 0.28)
         .animation(.easeInOut(duration: 0.15), value: on)
+    }
+
+    private func resolveLabel(_ value: String?, fallback: String) -> String {
+        let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let trimmed, !trimmed.isEmpty { return trimmed }
+        return fallback
     }
 
     private func supplementaryGroup(label: String, items: [MarkdownItem]) -> some View {

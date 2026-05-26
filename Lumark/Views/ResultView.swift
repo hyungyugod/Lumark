@@ -22,17 +22,24 @@ struct ResultView: View {
 
     @Environment(\.modelContext) private var modelContext
     @Query private var allNotes: [Note]
+    @State private var store = ColorRuleStore.shared
 
     enum Tab: String { case markdown, pdf }
 
     @State private var tab: Tab = .markdown
-    @State private var chips: [ColorCategory: Bool] = [
-        .yellow: true,
-        .orange: true,
-        .pink:   false,
-        .blue:   false,
-    ]
+    /// 색별 필터 ON/OFF. 초기값은 ColorRuleStore.isEnabled. 이후 사용자가
+    /// 결과 화면에서 끄고 켤 수 있으므로 화면 로컬 상태로 분리한다.
+    @State private var chips: [ColorCategory: Bool] = Self.initialChips()
     @State private var showingMore = false
+
+    /// ColorRuleStore.shared의 현재 활성 상태 스냅샷.
+    /// init 시점에 한 번만 평가됨 — 사용자가 설정에서 활성 토글하더라도
+    /// 결과 화면 안의 chips는 화면 내 토글로만 변함 (의도된 분리).
+    private static func initialChips() -> [ColorCategory: Bool] {
+        Dictionary(uniqueKeysWithValues: ColorCategory.allCases.map {
+            ($0, ColorRuleStore.shared.isEnabled($0))
+        })
+    }
 
     // CRUD
     @State private var showingRenameSheet = false
@@ -67,7 +74,12 @@ struct ResultView: View {
                     VStack(spacing: 0) {
                         switch tab {
                         case .markdown:
-                            MarkdownBodyView(document: document, chips: chips)
+                            MarkdownBodyView(
+                                document: document,
+                                chips: chips,
+                                pinkLabel: store.displayLabel(for: .pink),
+                                blueLabel: store.displayLabel(for: .blue)
+                            )
                         case .pdf:
                             PDFFauxView(document: document, chips: chips)
                         }
@@ -267,13 +279,16 @@ struct ResultView: View {
         }
     }
 
+    /// 칩 라벨: "색 (사용자라벨)" — 사용자가 라벨을 비웠으면 색 이름만.
     private func chipLabel(_ c: ColorCategory) -> String {
-        switch c {
-        case .yellow: return "노랑 (핵심)"
-        case .orange: return "주황 (주제)"
-        case .pink:   return "분홍"
-        case .blue:   return "파랑"
+        let colorName: String = switch c {
+        case .yellow: "노랑"
+        case .orange: "주황"
+        case .pink:   "분홍"
+        case .blue:   "파랑"
         }
+        let userLabel = store.rule(for: c)?.label.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return userLabel.isEmpty ? colorName : "\(colorName) (\(userLabel))"
     }
 
     // MARK: - Actions
@@ -282,17 +297,18 @@ struct ResultView: View {
         MarkdownDocument.from(note)
     }
 
-    /// 사용자가 설정에서 라벨 변경한 경우 우선 적용.
-    private var pinkLabel: String? { ColorRuleStore.shared.rule(for: .pink)?.label }
-    private var blueLabel: String? { ColorRuleStore.shared.rule(for: .blue)?.label }
+    /// MainActor → nonisolated 경계를 건너기 위한 라벨/활성 스냅샷.
+    /// ColorRuleStore가 사용자 설정의 단일 출처.
+    private var labelSnapshot: ColorRuleSnapshot {
+        store.currentSnapshot()
+    }
 
     private func copy() {
         let prefs = ExportPreferences.shared
         let md = MarkdownExporter.export(
             currentDoc,
             dialect: prefs.dialect,
-            pinkLabel: pinkLabel,
-            blueLabel: blueLabel,
+            labels: labelSnapshot,
             includePageMap: prefs.includePageMap
         )
         UIPasteboard.general.string = md
@@ -305,8 +321,7 @@ struct ResultView: View {
         let md = MarkdownExporter.export(
             currentDoc,
             dialect: prefs.dialect,
-            pinkLabel: pinkLabel,
-            blueLabel: blueLabel,
+            labels: labelSnapshot,
             includePageMap: prefs.includePageMap
         )
         shareItems = [md]
@@ -316,11 +331,10 @@ struct ResultView: View {
         guard !isPreparingExport else { return }
         isPreparingExport = true
         let doc = currentDoc
-        let pink = pinkLabel
-        let blue = blueLabel
+        let labels = labelSnapshot
         Task.detached(priority: .userInitiated) {
             do {
-                let url = try PDFExporter.export(doc, pinkLabel: pink, blueLabel: blue)
+                let url = try PDFExporter.export(doc, labels: labels)
                 await MainActor.run {
                     self.isPreparingExport = false
                     self.shareItems = [url]

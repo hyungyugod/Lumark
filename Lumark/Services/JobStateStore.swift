@@ -20,6 +20,9 @@ struct JobState: Codable, Identifiable, Sendable {
     let stagedURL: URL?    // PDF인 경우, 임시 디렉토리에 stage된 URL
     let imageDataPath: String?  // 이미지인 경우 디스크 경로
     let isPDF: Bool
+    /// Share Extension에서 진입한 경우의 AppGroup inbox UUID. 콜드 부팅 후
+    /// 재개·취소 시 inbox 파일 cleanup에 사용.
+    let inboxID: UUID?
     var stageRaw: Int     // ProcessingViewModel.Stage.rawValue
     var currentPage: Int
     var startedAt: Date
@@ -32,6 +35,7 @@ struct JobState: Codable, Identifiable, Sendable {
         stagedURL: URL? = nil,
         imageDataPath: String? = nil,
         isPDF: Bool,
+        inboxID: UUID? = nil,
         stageRaw: Int = 0,
         currentPage: Int = 0,
         startedAt: Date = .now,
@@ -43,6 +47,7 @@ struct JobState: Codable, Identifiable, Sendable {
         self.stagedURL = stagedURL
         self.imageDataPath = imageDataPath
         self.isPDF = isPDF
+        self.inboxID = inboxID
         self.stageRaw = stageRaw
         self.currentPage = currentPage
         self.startedAt = startedAt

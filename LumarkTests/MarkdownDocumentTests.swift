@@ -24,7 +24,7 @@ struct MarkdownDocumentTests {
         title: String = "T",
         pages: [[String]]
     ) -> Note {
-        let n = Note(title: title, sourceType: "pdf", pageCount: pages.count)
+        let n = Note(title: title, source: .pdf, pageCount: pages.count)
         var allPages: [Page] = []
         for (idx, lines) in pages.enumerated() {
             let p = Page(pageNumber: idx + 1, imageData: Data())
@@ -198,7 +198,7 @@ struct MarkdownDocumentTests {
 
     @Test("페이지가 역순으로 입력돼도 pageNumber 기준 정렬")
     func unsortedPagesGetSorted() {
-        let n = Note(title: "T", sourceType: "pdf", pageCount: 2)
+        let n = Note(title: "T", source: .pdf, pageCount: 2)
 
         let p2 = Page(pageNumber: 2, imageData: Data())
         p2.note = n
@@ -223,7 +223,7 @@ struct MarkdownDocumentTests {
 
     @Test("orderInPage가 뒤섞여도 정렬됨")
     func unsortedOrderInPageGetsSorted() {
-        let n = Note(title: "T", sourceType: "pdf", pageCount: 1)
+        let n = Note(title: "T", source: .pdf, pageCount: 1)
         let p = Page(pageNumber: 1, imageData: Data())
         p.note = n
         let hOrange = Highlight(colorCategory: .orange, text: "주제", boundingBoxData: Data(), orderInPage: 0)

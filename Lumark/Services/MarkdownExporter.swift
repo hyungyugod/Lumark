@@ -27,13 +27,13 @@ enum MarkdownExporter {
     /// MarkdownDocument를 마크다운 텍스트로 직렬화.
     /// - parameters:
     ///   - dialect: CommonMark / Obsidian
-    ///   - pinkLabel/blueLabel: 사용자 라벨 (없으면 기본값)
+    ///   - labels: 색별 표시 라벨 (분홍·파랑은 "추가 메모" 섹션 헤더로 사용).
+    ///             값이 비어있으면 색별 기본 라벨 폴백.
     ///   - includePageMap: 페이지 매핑 표 포함 여부 (spec §6 예시)
     static func export(
         _ doc: MarkdownDocument,
         dialect: MarkdownDialect = .commonMark,
-        pinkLabel: String? = nil,
-        blueLabel: String? = nil,
+        labels: ColorRuleSnapshot? = nil,
         includePageMap: Bool = false
     ) -> String {
         var out = ""
@@ -60,7 +60,7 @@ enum MarkdownExporter {
             out += "### 추가 메모\n\n"
 
             if !doc.pinkItems.isEmpty {
-                let label = pinkLabel?.trimmedNonEmpty() ?? "보충 (분홍)"
+                let label = labelFor(.pink, snapshot: labels)
                 out += "**\(label)**\n\n"
                 for item in doc.pinkItems {
                     out += "- \(format(item.text, color: .pink, dialect: dialect))\n"
@@ -69,7 +69,7 @@ enum MarkdownExporter {
             }
 
             if !doc.blueItems.isEmpty {
-                let label = blueLabel?.trimmedNonEmpty() ?? "참고 (파랑)"
+                let label = labelFor(.blue, snapshot: labels)
                 out += "**\(label)**\n\n"
                 for item in doc.blueItems {
                     out += "- \(format(item.text, color: .blue, dialect: dialect))\n"
@@ -100,6 +100,23 @@ enum MarkdownExporter {
         out += "> 변환 정보: \(footerInfo(for: doc))\n"
 
         return out
+    }
+
+    // MARK: - 라벨 폴백
+
+    /// snapshot에 비어있지 않은 라벨이 있으면 사용, 없으면 색별 기본 폴백.
+    /// (ColorRuleStore.displayLabel과 의미가 같지만 nonisolated 경로에서 호출 가능.)
+    private static func labelFor(_ color: ColorCategory, snapshot: ColorRuleSnapshot?) -> String {
+        if let trimmed = snapshot?.label(for: color).trimmingCharacters(in: .whitespacesAndNewlines),
+           !trimmed.isEmpty {
+            return trimmed
+        }
+        switch color {
+        case .yellow: return "핵심"
+        case .orange: return "주제"
+        case .pink:   return "보충 (분홍)"
+        case .blue:   return "참고 (파랑)"
+        }
     }
 
     // MARK: - dialect별 inline 포맷
@@ -153,9 +170,3 @@ enum MarkdownExporter {
     }()
 }
 
-private extension String {
-    nonisolated func trimmedNonEmpty() -> String? {
-        let t = trimmingCharacters(in: .whitespacesAndNewlines)
-        return t.isEmpty ? nil : t
-    }
-}

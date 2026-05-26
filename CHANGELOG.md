@@ -62,6 +62,16 @@
 - **Share Extension Target 생성** — Xcode UI에서 capability + target + Info.plist 수동 설정
 - **친구 alpha 테스트 (Day 11+)** — 본인 + 친구 1~2명 매일 사용 1주 지속 목표
 
+### Changed (정합성·확장성 정리 — 2026-05-26)
+- **ColorRule이 출력 파이프라인까지 도달.** `ColorRuleSnapshot` (값 타입, Sendable) 도입 → MarkdownExporter / PDFExporter / MarkdownBodyView 라벨 통합. ResultView chips 초기값은 `ColorRule.isEnabled` 기반, chip 라벨은 사용자 라벨 우선.
+- **`Note.sourceType: String` → `NoteSource` enum.** SwiftData 컬럼은 호환 유지(`sourceType: String`), 사용처는 `note.source` 게터 사용.
+- **AppGroup inbox cleanup 호출 누락 수정.** `PendingJob` / `JobState`에 `inboxID: UUID?` 영속화. `HomeView.finalizeJob`이 종료 시점에 단일 호출.
+- **"처음 안내 다시 보기" 작동.** SettingsView dismiss 감지 → `UserDefaults.hasOnboarded` 재평가 → onboarding 시트 재표시.
+- **`JobStateStore.finish` 책임 단일화.** ProcessingViewModel 내부 호출 제거 → view layer `finalizeJob`이 단일 호출 지점.
+- **`ProcessingViewModel.init`에 `source`/`resumeFrom` 인터페이스 추가.** Mock 단계에선 미사용, Day 5+ 실제 파이프라인 연결 시 갈아끼우는 지점만 미리 마련.
+- **`RecentNotesView`의 `try? modelContext.save()` silent fail 제거.** ResultView와 동일하게 `errorAlert` 패턴 적용 — spec §8 "데이터 절대 안 잃음".
+- **`JobSource: Sendable`, `ColorCategory: Sendable` 명시.**
+
 ### Notes
 - 프로젝트 빌드 설정 `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor`. 백그라운드 안전 코드는 명시적 `nonisolated`.
 - Xcode iOS Simulator 26.5, iPhone 17 기준 빌드/테스트.
