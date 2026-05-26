@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Lumark · HomeView</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700&family=Nanum+Myeongjo:wght@400;700;800&family=Noto+Serif+KR:wght@400;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+<style>
+  .hv-screen {
+    box-sizing: border-box;
+    --brown:    oklch(0.43 0.060 58);
+    --brown-2:  oklch(0.37 0.055 55);
+    --cream:    oklch(0.962 0.018 82);
+    --surface:  oklch(0.985 0.010 82);
+    --surface-2:oklch(0.945 0.020 82);
+    --ink:      oklch(0.255 0.026 50);
+    --ink-2:    oklch(0.34 0.022 50);
+    --subtle:   oklch(0.555 0.018 52);
+    --muted:    oklch(0.72 0.015 60);
+    --divider:  oklch(0.895 0.014 70);
+    --hairline: oklch(0.84 0.014 65);
+    --brass:    oklch(0.68 0.10 75);
+
+    --hl-yellow: oklch(0.80 0.180 90);
+    --hl-orange: oklch(0.72 0.180 50);
+    --hl-pink:   oklch(0.70 0.175 0);
+    --hl-blue:   oklch(0.66 0.130 235);
+
+    font-family: 'Noto Sans KR', system-ui, sans-serif;
+    color: var(--ink);
+    background: var(--cream);
+    width: 100%; height: 100%;
+    display: flex; flex-direction: column;
+    padding-top: 62px;
+    letter-spacing: -0.005em;
+    -webkit-font-smoothing: antialiased;
+    overflow: hidden;
+  }
+  .hv-screen[data-theme="dark"] {
+    --brown:    oklch(0.74 0.075 62);
+    --brown-2:  oklch(0.66 0.072 60);
+    --cream:    oklch(0.175 0.014 55);
+    --surface:  oklch(0.215 0.014 56);
+    --surface-2:oklch(0.255 0.016 56);
+    --ink:      oklch(0.925 0.014 80);
+    --ink-2:    oklch(0.84 0.018 75);
+    --subtle:   oklch(0.66 0.015 60);
+    --muted:    oklch(0.50 0.013 60);
+    --divider:  oklch(0.28 0.013 55);
+    --hairline: oklch(0.34 0.014 55);
+    --brass:    oklch(0.78 0.09 78);
+  }
+
+  /* Header */
+  .hv-header {
+    flex: 0 0 auto;
+    padding: 18px 24px 12px;
+    display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;
+  }
+  .hv-brand {
+    font-family: 'Nanum Myeongjo','Noto Serif KR',serif;
+    font-weight: 800; font-size: 30px; letter-spacing: -0.025em;
+    color: var(--ink); line-height: 1.1;
+    position: relative; display: inline-block;
+  }
+  /* Brass m-dot — the brand's signature flourish */
+  .hv-brand::after {
+    content: ''; position: absolute;
+    width: 4px; height: 4px; border-radius: 50%;
+    background: var(--brass);
+    top: 0; left: 47px;
+  }
+  .hv-sub {
+    font-size: 13px; color: var(--subtle); margin-top: 4px;
+    letter-spacing: -0.01em; line-height: 1.45;
+  }
+  .hv-gear {
+    appearance: none; border: 0; background: transparent;
+    width: 40px; height: 40px; border-radius: 20px;
+    color: var(--ink-2); cursor: pointer;
+    display: inline-flex; align-items: center; justify-content: center;
+    margin-top: -4px;
+  }
+
+  /* Body scroll */
+  .hv-body {
+    flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch;
+    padding: 8px 24px 40px;
+  }
+
+  /* Action card grid 2×2 */
+  .hv-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
+    margin-top: 8px;
+  }
+  .hv-card {
+    appearance: none; border: 0; background: var(--surface);
+    border: 1px solid var(--divider); border-radius: 18px;
+    aspect-ratio: 1 / 1.05;
+    padding: 16px 18px 18px;
+    display: flex; flex-direction: column; justify-content: space-between;
+    text-align: left; cursor: pointer;
+    color: var(--ink); font-family: inherit;
+    box-shadow: 0 1px 0 var(--surface-2), 0 6px 14px -10px rgba(40,28,16,.10);
+    transition: transform .12s ease, box-shadow .12s ease;
+  }
+  .hv-card:hover { transform: translateY(-1px); box-shadow: 0 1px 0 var(--surface-2), 0 12px 22px -12px rgba(40,28,16,.18); }
+  .hv-card.primary { background: var(--brown); border-color: var(--brown-2); color: var(--cream); }
+  .hv-card .ico {
+    width: 36px; height: 36px;
+    color: var(--brown);
+  }
+  .hv-card.primary .ico { color: var(--cream); opacity: 0.95; }
+  .hv-card .label { font-size: 18px; font-weight: 700; letter-spacing: -0.01em; font-family: 'Nanum Myeongjo','Noto Serif KR',serif; }
+  .hv-card .desc { font-size: 12px; color: var(--subtle); margin-top: 2px; }
+  .hv-card.primary .desc { color: color-mix(in oklab, var(--cream) 70%, var(--brown)); }
+
+  /* Hint banner */
+  .hv-banner {
+    margin-top: 18px;
+    display: flex; align-items: center; gap: 12px;
+    padding: 12px 14px;
+    border: 1px dashed var(--hairline);
+    border-radius: 14px;
+    background: color-mix(in oklab, var(--brass) 4%, var(--surface));
+  }
+  .hv-banner .b-ico {
+    width: 32px; height: 32px;
+    display: inline-flex; align-items: center; justify-content: center;
+    border-radius: 8px;
+    background: color-mix(in oklab, var(--brass) 12%, transparent);
+    color: var(--brass);
+    flex: 0 0 auto;
+  }
+  .hv-banner .b-text { flex: 1; font-size: 12.5px; line-height: 1.45; color: var(--ink-2); }
+  .hv-banner .b-text b { color: var(--ink); font-weight: 600; }
+  .hv-banner .b-chev { color: var(--muted); flex: 0 0 auto; }
+
+  /* Section header */
+  .hv-secthead {
+    display: flex; align-items: baseline; justify-content: space-between;
+    margin: 28px 0 12px;
+  }
+  .hv-secthead h3 {
+    font-family: 'Nanum Myeongjo','Noto Serif KR',serif;
+    font-weight: 700; font-size: 18px; margin: 0;
+    color: var(--ink); letter-spacing: -0.012em;
+  }
+  .hv-secthead .seeall {
+    appearance: none; border: 0; background: transparent; cursor: pointer; font: inherit;
+    font-size: 12.5px; color: var(--brown); font-weight: 500;
+    display: inline-flex; align-items: center; gap: 2px;
+  }
+
+  /* Recent list */
+  .hv-recent { display: flex; flex-direction: column; gap: 10px; }
+  .hv-rec {
+    display: grid; grid-template-columns: 44px 1fr auto;
+    gap: 14px; align-items: center;
+    padding: 12px; border-radius: 14px;
+    background: var(--surface); border: 1px solid var(--divider);
+  }
+  .hv-rec .thumb {
+    width: 44px; height: 56px; border-radius: 4px;
+    background: linear-gradient(180deg, var(--surface-2), var(--surface));
+    border: 1px solid var(--hairline);
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--subtle);
+    position: relative;
+    overflow: hidden;
+  }
+  /* faux page lines on the thumb */
+  .hv-rec .thumb::before {
+    content: ''; position: absolute; inset: 8px 7px auto 7px; height: 1px;
+    background: var(--hairline);
+    box-shadow: 0 6px 0 var(--hairline), 0 12px 0 var(--hairline), 0 18px 0 var(--hairline);
+  }
+  .hv-rec .thumb span { position: relative; z-index: 1; background: var(--surface); padding: 0 2px; }
+  .hv-rec .meta { min-width: 0; }
+  .hv-rec .title { font-size: 14.5px; font-weight: 600; color: var(--ink); letter-spacing: -0.01em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .hv-rec .date { font-size: 11.5px; color: var(--subtle); margin-top: 2px; }
+  .hv-rec .dots { margin-top: 6px; display: inline-flex; gap: 4px; }
+  .hv-rec .dots i { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
+  .hv-rec .chev { color: var(--muted); }
+
+  /* Empty state */
+  .hv-empty {
+    margin-top: 32px;
+    padding: 40px 28px 36px;
+    display: flex; flex-direction: column; align-items: center; gap: 12px;
+    text-align: center;
+  }
+  .hv-empty .illu { color: var(--brown); opacity: 0.95; }
+  .hv-empty .e-title {
+    font-family: 'Nanum Myeongjo','Noto Serif KR',serif;
+    font-weight: 700; font-size: 19px; color: var(--ink);
+    letter-spacing: -0.012em;
+  }
+  .hv-empty .e-desc { font-size: 13px; color: var(--subtle); line-height: 1.55; max-width: 240px; }
+  .hv-empty .cta {
+    appearance: none; border: 0; cursor: pointer; font: inherit;
+    background: var(--brown); color: var(--cream); font-weight: 600;
+    padding: 11px 22px; border-radius: 10px; font-size: 14px;
+    margin-top: 10px;
+  }
+
+  /* Outer page background */
+  body {
+    margin: 0;
+    background:
+      radial-gradient(900px 500px at 20% -10%, color-mix(in oklab, oklch(0.70 0.10 78) 6%, transparent), transparent),
+      oklch(0.955 0.018 82);
+    font-family: 'Noto Sans KR', system-ui, sans-serif;
+    color: oklch(0.255 0.026 50);
+    -webkit-font-smoothing: antialiased;
+  }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel" src="tweaks-panel.jsx"></script>
+<script type="text/babel" src="ios-frame.jsx"></script>
+<script type="text/babel" src="design-canvas.jsx"></script>
+<script type="text/babel" src="home-screen.jsx"></script>
+<script type="text/babel" src="home-app.jsx"></script>
+</body>
+</html>

@@ -1,0 +1,283 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Lumark · ResultView</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700&family=Nanum+Myeongjo:wght@400;700;800&family=Noto+Serif+KR:wght@400;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+<style>
+  /* ── Token block — same vocabulary as Design System; the [data-theme] attr
+        on each artboard's <ResultScreen> root scopes it per-frame so we can
+        render Light + Dark side-by-side without document-level theme. ── */
+  .rv-screen {
+    box-sizing: border-box;
+    --brown:    oklch(0.43 0.060 58);
+    --brown-2:  oklch(0.37 0.055 55);
+    --cream:    oklch(0.962 0.018 82);
+    --surface:  oklch(0.985 0.010 82);
+    --surface-2:oklch(0.945 0.020 82);
+    --ink:      oklch(0.255 0.026 50);
+    --ink-2:    oklch(0.34 0.022 50);
+    --subtle:   oklch(0.555 0.018 52);
+    --muted:    oklch(0.72 0.015 60);
+    --divider:  oklch(0.895 0.014 70);
+    --hairline: oklch(0.84 0.014 65);
+    --brass:    oklch(0.68 0.10 75);
+
+    --hl-yellow: oklch(0.80 0.180 90);
+    --hl-yellow-bg: oklch(0.955 0.085 92);
+    --hl-yellow-edge: oklch(0.84 0.140 90);
+    --hl-orange: oklch(0.72 0.180 50);
+    --hl-orange-bg: oklch(0.935 0.075 60);
+    --hl-orange-edge: oklch(0.80 0.140 55);
+    --hl-pink: oklch(0.70 0.175 0);
+    --hl-pink-bg: oklch(0.935 0.060 0);
+    --hl-pink-edge: oklch(0.82 0.115 0);
+    --hl-blue: oklch(0.66 0.130 235);
+    --hl-blue-bg: oklch(0.935 0.045 235);
+    --hl-blue-edge: oklch(0.81 0.085 235);
+
+    /* PDF surface — represents real paper, slightly cooler than the app cream */
+    --paper: oklch(0.985 0.006 80);
+    --paper-line: oklch(0.86 0.010 70);
+
+    font-family: 'Noto Sans KR', system-ui, sans-serif;
+    color: var(--ink);
+    background: var(--cream);
+    width: 100%; height: 100%;
+    display: flex; flex-direction: column;
+    /* IOSDevice renders its own absolute-positioned status bar (~62px).
+       Reserve that space at the top so our nav sits below it. */
+    padding-top: 62px;
+    letter-spacing: -0.005em;
+    -webkit-font-smoothing: antialiased;
+    overflow: hidden;
+  }
+  .rv-screen[data-theme="dark"] {
+    --brown:    oklch(0.74 0.075 62);
+    --brown-2:  oklch(0.66 0.072 60);
+    --cream:    oklch(0.175 0.014 55);
+    --surface:  oklch(0.215 0.014 56);
+    --surface-2:oklch(0.255 0.016 56);
+    --ink:      oklch(0.925 0.014 80);
+    --ink-2:    oklch(0.84 0.018 75);
+    --subtle:   oklch(0.66 0.015 60);
+    --muted:    oklch(0.50 0.013 60);
+    --divider:  oklch(0.28 0.013 55);
+    --hairline: oklch(0.34 0.014 55);
+    --brass:    oklch(0.78 0.09 78);
+
+    --hl-yellow-bg: oklch(0.36 0.090 88);
+    --hl-yellow-edge: oklch(0.52 0.130 88);
+    --hl-orange-bg: oklch(0.36 0.095 50);
+    --hl-orange-edge: oklch(0.52 0.135 50);
+    --hl-pink-bg: oklch(0.36 0.095 0);
+    --hl-pink-edge: oklch(0.52 0.130 0);
+    --hl-blue-bg: oklch(0.34 0.075 235);
+    --hl-blue-edge: oklch(0.50 0.110 235);
+
+    --paper: oklch(0.220 0.010 60);
+    --paper-line: oklch(0.32 0.012 55);
+  }
+
+  /* ── Nav bar ──────────────────────────────────────────────────────────── */
+  .rv-nav {
+    flex: 0 0 auto;
+    display: grid; grid-template-columns: 44px 1fr 44px; align-items: center;
+    height: 52px; padding: 0 6px;
+    background: var(--cream);
+    border-bottom: 1px solid color-mix(in oklab, var(--divider) 60%, transparent);
+  }
+  .rv-nav-btn {
+    appearance: none; border: 0; background: transparent;
+    width: 44px; height: 44px; border-radius: 22px;
+    display: inline-flex; align-items: center; justify-content: center;
+    color: var(--brown); cursor: pointer; padding: 0;
+  }
+  .rv-nav-title {
+    text-align: center; font-size: 15px; font-weight: 600;
+    color: var(--ink); letter-spacing: -0.01em;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+
+  /* ── Tabs (underline) ─────────────────────────────────────────────────── */
+  .rv-tabs {
+    display: flex; gap: 28px;
+    padding: 4px 20px 0;
+    background: var(--cream);
+    border-bottom: 1px solid var(--divider);
+  }
+  .rv-tab {
+    appearance: none; border: 0; background: transparent; cursor: pointer;
+    font: inherit; font-size: 14.5px; font-weight: 500; color: var(--subtle);
+    padding: 12px 2px 14px; position: relative;
+  }
+  .rv-tab.on { color: var(--ink); font-weight: 600; }
+  .rv-tab.on::after {
+    content: ''; position: absolute; left: 0; right: 0; bottom: -1px;
+    height: 2px; background: var(--brown); border-radius: 2px 2px 0 0;
+  }
+
+  /* ── Chips (4 highlighter colors) ─────────────────────────────────────── */
+  .rv-chips {
+    flex: 0 0 auto;
+    display: flex; gap: 8px; padding: 12px 20px;
+    overflow-x: auto; -webkit-overflow-scrolling: touch;
+    background: var(--cream);
+    scrollbar-width: none;
+  }
+  .rv-chips::-webkit-scrollbar { display: none; }
+  .rv-chip {
+    flex: 0 0 auto;
+    display: inline-flex; align-items: center; gap: 7px;
+    padding: 7px 14px 7px 11px; border-radius: 999px;
+    font-size: 13px; font-weight: 500; line-height: 1;
+    background: transparent; color: var(--subtle);
+    border: 1px solid var(--divider);
+    cursor: pointer; font-family: inherit;
+    white-space: nowrap;
+  }
+  .rv-chip .d { width: 9px; height: 9px; border-radius: 50%; background: var(--c, var(--muted)); opacity: .55; }
+  .rv-chip.on { color: var(--ink); background: var(--c-bg); border-color: var(--c-edge); }
+  .rv-chip.on .d { opacity: 1; box-shadow: 0 0 0 2px color-mix(in oklab, var(--c) 28%, transparent); }
+
+  /* ── Body (scroll) ────────────────────────────────────────────────────── */
+  .rv-body {
+    flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch;
+    padding: 20px 22px 28px;
+    background: var(--cream);
+  }
+
+  /* Markdown styles */
+  .md-h1 { font-family: 'Nanum Myeongjo','Noto Serif KR',serif; font-weight: 800; font-size: 26px; line-height: 1.2; letter-spacing: -0.018em; color: var(--ink); margin: 8px 0 22px; }
+  .md-h2 { font-family: 'Nanum Myeongjo','Noto Serif KR',serif; font-weight: 700; font-size: 18px; line-height: 1.3; color: var(--ink); margin: 22px 0 8px; letter-spacing: -0.01em; }
+  .md-h3 { font-family: 'Nanum Myeongjo','Noto Serif KR',serif; font-weight: 700; font-size: 15px; color: var(--ink); margin: 16px 0 6px; }
+  .md-p  { color: var(--ink-2); margin: 6px 0; font-size: 14px; line-height: 1.65; }
+  .md-ul { list-style: none; padding: 0; margin: 4px 0 12px; display: flex; flex-direction: column; gap: 4px; }
+  .md-li {
+    position: relative; padding: 6px 0 6px 14px;
+    color: var(--ink-2); font-size: 14px; line-height: 1.6;
+    transition: opacity .15s ease;
+  }
+  .md-li::before {
+    content: ''; position: absolute; left: 0; top: 9px; bottom: 9px;
+    width: 2px; border-radius: 2px; background: var(--c, var(--divider));
+  }
+  .md-li[data-c="yellow"] { --c: var(--hl-yellow); }
+  .md-li[data-c="orange"] { --c: var(--hl-orange); }
+  .md-li[data-c="pink"]   { --c: var(--hl-pink); }
+  .md-li[data-c="blue"]   { --c: var(--hl-blue); }
+  .md-li.off { opacity: .28; }
+  .md-li.off::before { opacity: .35; }
+
+  .md-hr { border: 0; border-top: 1px dashed var(--hairline); margin: 22px 0 16px; }
+
+  .md-strong { color: var(--ink); font-weight: 700; }
+
+  /* ── PDF tab — faux scanned page ──────────────────────────────────────── */
+  .pdf-page {
+    background: var(--paper);
+    border-radius: 4px;
+    box-shadow: 0 1px 0 var(--divider), 0 14px 30px -16px rgba(40,28,16,.18);
+    padding: 28px 24px 36px;
+    color: var(--ink);
+    font-family: 'Nanum Myeongjo','Noto Serif KR',serif;
+    position: relative;
+  }
+  .pdf-page h1 {
+    font-weight: 800; font-size: 22px; margin: 0 0 6px; letter-spacing: -0.01em;
+    border-bottom: 1.5px solid var(--ink); padding-bottom: 10px;
+  }
+  .pdf-page h2 { font-weight: 700; font-size: 16px; margin: 18px 0 8px; }
+  .pdf-page .body { font-family: 'Noto Sans KR', sans-serif; font-size: 13px; line-height: 1.85; color: var(--ink-2); }
+  .pdf-page .body p { margin: 6px 0; }
+  .pdf-page .pno { position: absolute; bottom: 10px; right: 14px; font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--muted); }
+
+  /* Highlight overlay on text inside .pdf-page */
+  .hl {
+    position: relative;
+    background: linear-gradient(to bottom,
+      transparent 32%,
+      color-mix(in oklab, var(--c) 55%, transparent) 32%,
+      color-mix(in oklab, var(--c) 55%, transparent) 90%,
+      transparent 90%);
+    padding: 0 1px;
+    transition: background .15s ease;
+  }
+  .hl.off { background: transparent; }
+  .hl[data-c="yellow"] { --c: var(--hl-yellow); }
+  .hl[data-c="orange"] { --c: var(--hl-orange); }
+  .hl[data-c="pink"]   { --c: var(--hl-pink); }
+  .hl[data-c="blue"]   { --c: var(--hl-blue); }
+
+  /* ── Action bar (bottom, floats above home indicator so the rounded
+        iPhone bezel + 34px home indicator zone don't clip it) ──────────── */
+  .rv-actionbar {
+    flex: 0 0 auto;
+    display: flex; gap: 4px;
+    margin: 0 16px 50px;   /* clear bezel corners + 34px home indicator + safe gap */
+    padding: 6px;
+    background: var(--surface);
+    border: 1px solid var(--divider);
+    border-radius: 16px;
+    box-shadow: 0 1px 2px rgba(40,28,16,.04), 0 12px 30px -16px rgba(40,28,16,.22);
+  }
+  .rv-a {
+    flex: 1; appearance: none; border: 0; background: transparent;
+    font: inherit; font-size: 10.5px; font-weight: 500; line-height: 1.1;
+    color: var(--ink-2);
+    display: flex; flex-direction: column; align-items: center; gap: 3px;
+    padding: 6px 4px 7px; border-radius: 10px; cursor: pointer;
+  }
+  .rv-a .ico { width: 18px; height: 18px; }
+  .rv-a.primary { background: var(--brown); color: var(--cream); font-weight: 600; }
+  .rv-a.primary .ico { color: var(--cream); }
+
+  /* ── iOS status bar (custom — IOSStatusBar requires document-level dark) ─ */
+  .rv-status {
+    flex: 0 0 auto;
+    height: 47px;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 28px 0;
+    font-family: -apple-system, system-ui, sans-serif;
+    font-size: 16px; font-weight: 600;
+    color: var(--ink);
+    background: var(--cream);
+  }
+  .rv-status .right { display: inline-flex; align-items: center; gap: 6px; color: var(--ink); }
+
+  /* ── Outer page background (around the iPhone frames) ─────────────────── */
+  body {
+    margin: 0;
+    background:
+      radial-gradient(1000px 600px at 80% -10%, color-mix(in oklab, oklch(0.70 0.10 78) 6%, transparent), transparent),
+      oklch(0.955 0.018 82);
+    font-family: 'Noto Sans KR', system-ui, sans-serif;
+    color: oklch(0.255 0.026 50);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Postit notes inside the canvas */
+  .dc-note { font-family: 'Noto Sans KR'; font-size: 12px; line-height: 1.5; color: oklch(0.34 0.022 50); }
+  .dc-note b { color: oklch(0.255 0.026 50); }
+  .dc-note .tag { display: inline-block; padding: 2px 8px; font-size: 10.5px; font-family: 'JetBrains Mono', monospace; background: rgba(0,0,0,.06); border-radius: 999px; margin-right: 6px; color: oklch(0.34 0.022 50); }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel" src="tweaks-panel.jsx"></script>
+<script type="text/babel" src="ios-frame.jsx"></script>
+<script type="text/babel" src="design-canvas.jsx"></script>
+<script type="text/babel" src="result-screen.jsx"></script>
+<script type="text/babel" src="result-app.jsx"></script>
+</body>
+</html>
