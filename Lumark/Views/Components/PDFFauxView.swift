@@ -57,22 +57,22 @@ struct PDFFauxView: View {
                         .plain("신독성 신호로 "),
                         .highlight("BUN/Cr 상승", .yellow),
                         .plain("을 추적하고, "),
-                        .highlight("청신경 독성은 대부분 가역적", .pink),
+                        .highlight("청신경 독성은 대부분 가역적", .yellow),
                         .plain("이지만 조기 발견이 중요하다."),
                     ]
                 }
 
                 paragraph {
                     [
-                        .highlight("위막성 대장염", .pink),
-                        .plain("은 클로스트리디움 디피실에 의해 발생하며, 광범위 항생제 사용 후 발생한 설사에서 의심해야 한다."),
+                        .highlight("위막성 대장염은 클로스트리디움 디피실", .yellow),
+                        .plain("에 의해 발생하며, 광범위 항생제 사용 후 발생한 설사에서 의심해야 한다."),
                     ]
                 }
 
                 paragraph {
                     [
-                        .highlight("감수성 검사(AST) 결과가 우선", .blue),
-                        .plain("하며, 경험적 치료는 그 다음이다."),
+                        .highlight("감수성 검사(AST) 결과가 경험적 치료보다 우선", .yellow),
+                        .plain("한다."),
                     ]
                 }
             }

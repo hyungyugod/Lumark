@@ -32,15 +32,9 @@ nonisolated enum PDFExporter {
     private static let pageSize = CGSize(width: 595, height: 842)
     private static let pageMargin: CGFloat = 56
 
-    static func export(
-        _ doc: MarkdownDocument,
-        labels: ColorRuleSnapshot? = nil
-    ) throws -> URL {
+    static func export(_ doc: MarkdownDocument) throws -> URL {
 
-        let attr = buildAttributedString(
-            from: doc,
-            labels: labels
-        )
+        let attr = buildAttributedString(from: doc)
 
         let pageBounds = CGRect(origin: .zero, size: pageSize)
         let textBounds = pageBounds.insetBy(dx: pageMargin, dy: pageMargin)
@@ -90,10 +84,7 @@ nonisolated enum PDFExporter {
 
     // MARK: - NSAttributedString 빌드
 
-    private static func buildAttributedString(
-        from doc: MarkdownDocument,
-        labels: ColorRuleSnapshot?
-    ) -> NSAttributedString {
+    private static func buildAttributedString(from doc: MarkdownDocument) -> NSAttributedString {
         let out = NSMutableAttributedString()
 
         // 제목
@@ -113,55 +104,11 @@ nonisolated enum PDFExporter {
             }
         }
 
-        // 추가 메모
-        if doc.hasSupplementary {
-            out.append(NSAttributedString(string: "\n", attributes: bodyAttrs()))
-            out.append(divider())
-            out.append(NSAttributedString(string: "추가 메모\n\n", attributes: subTitleAttrs()))
-
-            if !doc.pinkItems.isEmpty {
-                let label = supplementaryLabel(for: .pink, snapshot: labels)
-                out.append(NSAttributedString(string: "\(label)\n", attributes: emphAttrs()))
-                for item in doc.pinkItems {
-                    out.append(bullet(text: item.text, color: .pink))
-                }
-                out.append(NSAttributedString(string: "\n", attributes: bodyAttrs()))
-            }
-
-            if !doc.blueItems.isEmpty {
-                let label = supplementaryLabel(for: .blue, snapshot: labels)
-                out.append(NSAttributedString(string: "\(label)\n", attributes: emphAttrs()))
-                for item in doc.blueItems {
-                    out.append(bullet(text: item.text, color: .blue))
-                }
-                out.append(NSAttributedString(string: "\n", attributes: bodyAttrs()))
-            }
-        }
-
         // 변환 정보 footer
         out.append(divider())
         out.append(NSAttributedString(string: footerText(for: doc), attributes: footerAttrs()))
 
         return out
-    }
-
-    // MARK: - 라벨 폴백
-
-    /// MarkdownExporter.labelFor와 동일한 의미.
-    /// nonisolated 영역에서 호출하기 위해 ColorRuleStore를 직접 부르지 않는다.
-    private static func supplementaryLabel(
-        for color: ColorCategory,
-        snapshot: ColorRuleSnapshot?
-    ) -> String {
-        let trimmed = snapshot?.label(for: color)
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        if let trimmed, !trimmed.isEmpty { return trimmed }
-        switch color {
-        case .yellow: return "핵심"
-        case .orange: return "주제"
-        case .pink:   return "보충 (분홍)"
-        case .blue:   return "참고 (파랑)"
-        }
     }
 
     // MARK: - 글머리표 한 줄
@@ -243,19 +190,6 @@ nonisolated enum PDFExporter {
                 ?? UIFont.systemFont(ofSize: 16, weight: .bold),
             .foregroundColor: inkColor,
             .paragraphStyle: p,
-        ]
-    }
-    private static func subTitleAttrs() -> [NSAttributedString.Key: Any] {
-        return [
-            .font: UIFont(name: "NanumMyeongjo-Bold", size: 13)
-                ?? UIFont.systemFont(ofSize: 13, weight: .bold),
-            .foregroundColor: inkColor,
-        ]
-    }
-    private static func emphAttrs() -> [NSAttributedString.Key: Any] {
-        return [
-            .font: UIFont.systemFont(ofSize: 12, weight: .semibold),
-            .foregroundColor: inkColor,
         ]
     }
     private static func bodyAttrs() -> [NSAttributedString.Key: Any] {

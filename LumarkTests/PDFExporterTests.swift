@@ -19,7 +19,7 @@ import PDFKit
 @Suite("PDFExporter — invariants")
 struct PDFExporterTests {
 
-    private func makeDoc(supplementary: Bool = false) -> MarkdownDocument {
+    private func makeDoc() -> MarkdownDocument {
         // 병렬 테스트 충돌 방지 — 매번 unique title
         MarkdownDocument(
             title: "테스트노트-\(UUID().uuidString.prefix(8))",
@@ -29,12 +29,6 @@ struct PDFExporterTests {
                     MarkdownItem(id: UUID(), color: .yellow, text: "글머리2"),
                 ])
             ],
-            pinkItems: supplementary
-                ? [MarkdownItem(id: UUID(), color: .pink, text: "분홍1")]
-                : [],
-            blueItems: supplementary
-                ? [MarkdownItem(id: UUID(), color: .blue, text: "파랑1")]
-                : [],
             createdAt: .now,
             pageCount: 1,
             originalFilename: "테스트.pdf"
@@ -51,23 +45,18 @@ struct PDFExporterTests {
         #expect(pdf.pageCount >= 1)
     }
 
-    @Test("추가 메모 있는 문서도 PDF로 정상 내보내짐")
-    func withSupplementary() throws {
-        let url = try PDFExporter.export(makeDoc(supplementary: true))
+    @Test("본문 텍스트가 PDF에 포함됨")
+    func bodyTextIncluded() throws {
+        let url = try PDFExporter.export(makeDoc())
         defer { try? FileManager.default.removeItem(at: url) }
 
         let pdf = try #require(PDFDocument(url: url))
-        #expect(pdf.pageCount >= 1)
-
-        // 본문 + 추가 메모가 다 들어갔는지 텍스트 추출로 spot-check
         let text = (0..<pdf.pageCount)
             .compactMap { pdf.page(at: $0)?.string }
             .joined(separator: "\n")
         #expect(text.contains("섹션1"))
         #expect(text.contains("글머리1"))
-        #expect(text.contains("추가 메모"))
-        #expect(text.contains("분홍1"))
-        #expect(text.contains("파랑1"))
+        #expect(text.contains("글머리2"))
     }
 
     @Test("빈 섹션의 문서도 PDF는 만들어짐 (footer만)")
@@ -75,8 +64,6 @@ struct PDFExporterTests {
         let empty = MarkdownDocument(
             title: "비어있음",
             sections: [],
-            pinkItems: [],
-            blueItems: [],
             createdAt: .now,
             pageCount: 0,
             originalFilename: nil
@@ -93,8 +80,6 @@ struct PDFExporterTests {
         let doc = MarkdownDocument(
             title: "위/아래:옆-\(UUID().uuidString.prefix(8))",
             sections: [],
-            pinkItems: [MarkdownItem(id: UUID(), color: .pink, text: "x")],
-            blueItems: [],
             createdAt: .now,
             pageCount: 1,
             originalFilename: nil

@@ -16,10 +16,6 @@ struct MarkdownBodyView: View {
     let document: MarkdownDocument
     /// 색별 ON/OFF 상태. true = 보임, false = dim
     let chips: [ColorCategory: Bool]
-    /// 분홍·파랑 "추가 메모" 헤더 라벨 (ColorRuleStore에서 주입).
-    /// nil/공백이면 색별 기본 폴백.
-    var pinkLabel: String? = nil
-    var blueLabel: String? = nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -65,32 +61,6 @@ struct MarkdownBodyView: View {
                 }
                 .padding(.bottom, Space.s3)
             }
-
-            // 추가 메모 (분홍/파랑)
-            if document.hasSupplementary {
-                Divider()
-                    .overlay(Palette.hairline)
-                    .padding(.vertical, Space.s5)
-
-                Text("추가 메모")
-                    .font(.system(size: 15, weight: .bold, design: .serif))
-                    .foregroundStyle(Palette.ink)
-                    .padding(.bottom, Space.s2)
-
-                if !document.pinkItems.isEmpty {
-                    supplementaryGroup(
-                        label: resolveLabel(pinkLabel, fallback: "보충 (분홍)"),
-                        items: document.pinkItems
-                    )
-                }
-                if !document.blueItems.isEmpty {
-                    supplementaryGroup(
-                        label: resolveLabel(blueLabel, fallback: "참고 (파랑)"),
-                        items: document.blueItems
-                    )
-                    .padding(.top, Space.s3)
-                }
-            }
         }
     }
 
@@ -128,23 +98,4 @@ struct MarkdownBodyView: View {
         .animation(.easeInOut(duration: 0.15), value: on)
     }
 
-    private func resolveLabel(_ value: String?, fallback: String) -> String {
-        let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines)
-        if let trimmed, !trimmed.isEmpty { return trimmed }
-        return fallback
-    }
-
-    private func supplementaryGroup(label: String, items: [MarkdownItem]) -> some View {
-        let allOff = items.allSatisfy { (chips[$0.color] ?? true) == false }
-
-        return VStack(alignment: .leading, spacing: 4) {
-            Text(label)
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(Palette.ink)
-                .padding(.bottom, 2)
-
-            ForEach(items) { bulletRow($0) }
-        }
-        .opacity(allOff ? 0.28 : 1.0)
-    }
 }

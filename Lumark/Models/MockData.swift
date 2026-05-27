@@ -33,7 +33,7 @@ enum MockData {
             title: "항생제정리",
             createdAt: dateOf("2026-05-24"),
             source: .pdf,
-            pageCount: 4,
+            pageCount: 3,
             originalFilename: "항생제정리.pdf"
         )
 
@@ -52,7 +52,7 @@ enum MockData {
         ]
         p1.highlights.forEach { $0.page = p1 }
 
-        // ── Page 2: 부작용 모니터링 (주황 = 섹션, 노랑/분홍 본문)
+        // ── Page 2: 부작용 모니터링
         let p2 = Page(pageNumber: 2, imageData: Data())
         p2.note = note
         p2.highlights = [
@@ -60,7 +60,7 @@ enum MockData {
                       boundingBoxData: placeholderBox, orderInPage: 0),
             Highlight(colorCategory: .yellow, text: "신독성 신호 — BUN/Cr 상승",
                       boundingBoxData: placeholderBox, orderInPage: 1),
-            Highlight(colorCategory: .pink,   text: "청신경 독성 — 가역적",
+            Highlight(colorCategory: .yellow, text: "청신경 독성 — 가역적이나 조기 발견 중요",
                       boundingBoxData: placeholderBox, orderInPage: 2),
         ]
         p2.highlights.forEach { $0.page = p2 }
@@ -69,23 +69,14 @@ enum MockData {
         let p3 = Page(pageNumber: 3, imageData: Data())
         p3.note = note
         p3.highlights = [
-            Highlight(colorCategory: .pink,  text: "위막성 대장염 — 클로스트리디움 디피실",
+            Highlight(colorCategory: .yellow, text: "위막성 대장염 — 클로스트리디움 디피실",
                       boundingBoxData: placeholderBox, orderInPage: 0),
-            Highlight(colorCategory: .blue,  text: "참고: 항생제 감수성 검사(AST) 결과 우선",
+            Highlight(colorCategory: .yellow, text: "감수성 검사(AST) 결과가 경험적 치료보다 우선",
                       boundingBoxData: placeholderBox, orderInPage: 1),
         ]
         p3.highlights.forEach { $0.page = p3 }
 
-        // ── Page 4: 추가 메모용 분홍 1개
-        let p4 = Page(pageNumber: 4, imageData: Data())
-        p4.note = note
-        p4.highlights = [
-            Highlight(colorCategory: .pink,  text: "위막성 대장염 의심 시 메트로니다졸 또는 반코마이신 경구",
-                      boundingBoxData: placeholderBox, orderInPage: 0),
-        ]
-        p4.highlights.forEach { $0.page = p4 }
-
-        note.pages = [p1, p2, p3, p4]
+        note.pages = [p1, p2, p3]
         return note
     }
 
@@ -99,7 +90,7 @@ enum MockData {
                 title: "심전도 판독 요점",
                 date: "2026-05-22",
                 pageCount: 12,
-                colors: [.yellow, .blue]
+                colors: [.yellow, .orange]
             ),
             simpleNote(
                 title: "당뇨병 약물 정리",

@@ -62,6 +62,13 @@
 - **Share Extension Target 생성** — Xcode UI에서 capability + target + Info.plist 수동 설정
 - **친구 alpha 테스트 (Day 11+)** — 본인 + 친구 1~2명 매일 사용 1주 지속 목표
 
+### Changed (v0.1 색 범위 축소 — 2026-05-26)
+- **v0.1 활성 색을 노랑/주황으로 한정.** 실제 간호학 PDF 페이지(여성건강간호학 §대아심박동) 검토 결과 분홍/파랑은 본문 섹션에서 분리하기보다 본문에 inline으로 자연스럽고, 분홍/파랑 highlight 자체가 페이지에 없는 경우가 더 흔함. 분홍/파랑 검출·렌더는 v0.2+ 백로그로 이동.
+- 단일 진리원으로 `ColorCategory.activeInV01: [.yellow, .orange]` 도입 — UI/defaults/exporters 모두 이걸 사용. v0.2에서 케이스 추가만으로 재활성.
+- 보존: `ColorCategory` enum의 `.pink`/`.blue` 케이스, Theme 토큰(Highlight.pink/blue/pinkBG/blueBG/pinkEdge/blueEdge), 앱 아이콘 4색 스트로크 — 브랜드 자산 + SwiftData 호환성 유지.
+- 제거: `MarkdownDocument.pinkItems`/`blueItems`/`hasSupplementary`, MarkdownExporter "### 추가 메모" 섹션, PDFExporter 동일 블록, MarkdownBodyView supplementary 섹션, SettingsView "분홍·파랑 = 추가 메모" 안내 카드, ResultView 분홍/파랑 chip, MockData 분홍/파랑 fixture, `ColorRuleSnapshot`/`currentSnapshot` (사용처 소멸).
+- 테스트 32 → 27개 (분홍/파랑 잠금 5개 제거 + `inactiveColorsIgnored`/`onlyInactiveColors` 2개 추가).
+
 ### Changed (정합성·확장성 정리 — 2026-05-26)
 - **ColorRule이 출력 파이프라인까지 도달.** `ColorRuleSnapshot` (값 타입, Sendable) 도입 → MarkdownExporter / PDFExporter / MarkdownBodyView 라벨 통합. ResultView chips 초기값은 `ColorRule.isEnabled` 기반, chip 라벨은 사용자 라벨 우선.
 - **`Note.sourceType: String` → `NoteSource` enum.** SwiftData 컬럼은 호환 유지(`sourceType: String`), 사용처는 `note.source` 게터 사용.

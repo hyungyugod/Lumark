@@ -23,7 +23,8 @@ struct ColorRule: Codable, Identifiable, Equatable {
     var isEnabled: Bool
     let hsvRange: HSVRange
 
-    static let defaults: [ColorRule] = ColorCategory.allCases.map { c in
+    /// v0.1은 노랑/주황만. 분홍/파랑은 enum에 남아있지만 사용자 룰셋에는 없음.
+    static let defaults: [ColorRule] = ColorCategory.activeInV01.map { c in
         ColorRule(
             id: UUID(),
             color: c,

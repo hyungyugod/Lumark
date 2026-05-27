@@ -23,18 +23,19 @@
 - 사진 앱 공유 시트 수신 (이미지)
 - 메인 앱 홈에서 PDF/이미지 picker
 - 메인 앱 홈에서 카메라 입력 (`VNDocumentCameraViewController`)
-- 형광펜 다중 색 검출 (노랑/주황 기본, 분홍/파랑 옵션)
+- 형광펜 2색 검출 (노랑/주황)
 - 색별 자동 분류 + 구조 인식 (주황 = 섹션 제목, 노랑 = 글머리표)
 - 인쇄체 한국어 OCR (Apple Vision Framework)
 - 마크다운 출력 (CommonMark) + PDF 내보내기
 - SwiftData 기반 노트 라이브러리 (홈에서 최근 작업)
-- 결과 화면: 마크다운 미리보기 ↔ 원본 PDF 탭 토글, 색상 토글, 복사/공유/PDF 내보내기
-- 색 매핑 사용자 라벨 입력
+- 결과 화면: 마크다운 미리보기 ↔ 원본 PDF 탭 토글, 색상 토글(노랑/주황), 복사/공유/PDF 내보내기
+- 색 매핑 사용자 라벨 입력 (노랑/주황만)
 - 변환 진행률·취소
 - 부분 성공 허용 + 안전한 실패 UX
 
 ### v0.2+ 백로그
 
+- **분홍·파랑 색상 검출 + "추가 메모" 섹션**. enum/Theme/아이콘 자산은 v0.1에 이미 준비되어 있고 파이프라인만 비활성. `ColorCategory.activeInV01`에 케이스 추가로 재활성.
 - **ReplayKit 기반 실시간 캡처 모드** (백그라운드 녹화 → 페이지 프레임 자동 추출 → 후처리). Lumark의 진짜 vision.
 - 빨간펜 손글씨 "단어:설명" 패턴 인식 (외부 OCR API 검토)
 - HSV 미세조정 UI (사용자 캘리브레이션)
@@ -80,11 +81,11 @@
 
 **ResultView**
 - 탭 토글: 마크다운 ↔ 원본 PDF 미리보기
-- 색상 필터 토글: 노랑/주황/분홍/파랑 각각 켜고 끄기
+- 색상 필터 토글: 노랑/주황 각각 켜고 끄기
 - 하단 액션: [복사] [공유] [PDF 내보내기]
 
 **SettingsView**
-- 색상 매핑 (4색 × 활성·라벨)
+- 색상 매핑 (노랑/주황 × 활성·라벨)
 - 구조 인식 룰 안내 (정보 표시만, 수정 불가)
 - 앱 정보 / 버전
 
@@ -123,6 +124,8 @@
 ```swift
 enum ColorCategory: String, Codable {
     case yellow, orange, pink, blue
+    /// v0.1 활성 색 — 분홍/파랑은 enum/Theme/아이콘 브랜드 자산으로만 유지, 파이프라인 미사용.
+    static let activeInV01: [ColorCategory] = [.yellow, .orange]
 }
 ```
 
@@ -144,14 +147,14 @@ struct HSVRange: Codable {
 }
 ```
 
-### 초기값
+### 초기값 (v0.1)
 
 | 색 | 기본 라벨 | 기본 활성 | 출력 역할 |
 |---|---|---|---|
 | 🟡 노랑 | 핵심 | ✅ ON | 글머리표 (`- 본문`) |
 | 🟠 주황 | 주제 | ✅ ON | 섹션 제목 (`## 제목`) |
-| 🩷 분홍 | (빈값) | ⬜ OFF | "추가 메모" 섹션 |
-| 🔵 파랑 | (빈값) | ⬜ OFF | "추가 메모" 섹션 |
+| 🩷 분홍 | — | — | v0.2+ |
+| 🔵 파랑 | — | — | v0.2+ |
 
 ### 설계 원칙
 
@@ -242,7 +245,7 @@ struct HSVRange: Codable {
 
 ### dialect: CommonMark (Notion·GitHub·Obsidian 호환)
 
-### 예시
+### 예시 (v0.1: 노랑/주황만)
 
 ```markdown
 # 항생제정리
@@ -260,20 +263,8 @@ struct HSVRange: Codable {
 ## 부작용 모니터링
 
 - 신독성 신호 — BUN/Cr 상승
-- 청신경 독성 — 가역적
+- 청신경 독성 — 가역적이나 조기 발견 중요
 - 위막성 대장염 — 클로스트리디움 디피실
-
----
-
-### 추가 메모
-
-**보충 (분홍)**
-
-- 분홍 펜으로 표시된 항목들
-
-**주의 (파랑)**
-
-- 파랑 펜으로 표시된 항목들
 
 ---
 
@@ -281,15 +272,14 @@ struct HSVRange: Codable {
 |---|---|
 | p.1 | 주제 미지정 (항목 2) |
 | p.2 | 항생제의 분류 (항목 3) |
-| p.3 | 부작용 모니터링 (항목 2) |
-| p.4 | 부작용 모니터링 (항목 1) |
+| p.3 | 부작용 모니터링 (항목 3) |
 
 ---
 
-> 변환 정보: 항생제정리.pdf · 4페이지 · 2026-05-21 변환
+> 변환 정보: 항생제정리.pdf · 3페이지 · 2026-05-21 변환
 ```
 
-### 출력 알고리즘 (의사 코드)
+### 출력 알고리즘 (의사 코드, v0.1)
 
 ```swift
 func generateMarkdown(note: Note) -> String {
@@ -300,13 +290,15 @@ func generateMarkdown(note: Note) -> String {
             page.highlights.sorted { $0.orderInPage < $1.orderInPage }
         }
 
-    // 2. 주황 등장 인덱스로 섹션 분할
-    let sections = splitByOrangeMarkers(highlights)
+    // 2. 활성 색만 필터 (v0.1 = 노랑/주황). 분홍/파랑은 입력으로 와도 무시.
+    let active = highlights.filter {
+        ColorCategory.activeInV01.contains($0.colorCategory)
+    }
+
+    // 3. 주황 등장 인덱스로 섹션 분할
+    let sections = splitByOrangeMarkers(active)
     // sections[0] = 첫 주황 이전 노랑들 → "주제 미지정"
     // sections[1..] = 각 주황을 제목으로 가짐
-
-    // 3. 분홍/파랑은 별도 풀로 분리 ("추가 메모")
-    let (primary, supplementary) = separateAuxColors(sections)
 
     // 4. 페이지 매핑 표 생성
     let pageMap = buildPageMap(note)
@@ -314,8 +306,7 @@ func generateMarkdown(note: Note) -> String {
     // 5. 조립
     return assemble(
         title: note.title,
-        sections: primary,
-        supplementary: supplementary,
+        sections: sections,
         pageMap: pageMap,
         note: note
     )

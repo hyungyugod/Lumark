@@ -2,7 +2,8 @@
 //  SettingsView.swift
 //  Lumark
 //
-//  spec §2: 4색 매핑(라벨/활성) + 구조 인식 룰 안내(읽기 전용) + 앱 정보.
+//  spec §2: 활성 색 매핑(라벨/활성) + 구조 인식 룰 안내(읽기 전용) + 앱 정보.
+//  v0.1은 노랑/주황만 노출 (분홍/파랑은 v0.2+).
 //  iOS 표준 Form 패턴을 디자인 토큰으로 살짝 다듬음.
 //
 
@@ -43,7 +44,7 @@ struct SettingsView: View {
 
     private var colorMappingSection: some View {
         Section {
-            ForEach(ColorCategory.allCases) { color in
+            ForEach(ColorCategory.activeInV01) { color in
                 colorRow(color)
             }
 
@@ -165,11 +166,6 @@ struct SettingsView: View {
                 badge: "🟡",
                 title: "노랑 = 글머리표",
                 desc: "노랑으로 표시된 텍스트는 섹션 아래 글머리표로 정리됩니다."
-            )
-            ruleRow(
-                badge: "🩷🔵",
-                title: "분홍·파랑 = 추가 메모",
-                desc: "분홍과 파랑은 별도의 '추가 메모' 섹션에 모아집니다."
             )
         } header: {
             sectionHeader("구조 인식 룰", subtitle: "현재 버전에서는 수정할 수 없어요")

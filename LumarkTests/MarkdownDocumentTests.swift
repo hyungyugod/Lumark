@@ -8,6 +8,8 @@
 //  주어졌을 때 우리가 그걸 올바른 섹션 구조로 변환하는가 — 이건 입력 OCR과
 //  무관하게 알고리즘 자체로 검증 가능. 그 부분을 여기서 100% 잠근다.
 //
+//  v0.1은 노랑/주황만 처리. 분홍/파랑 highlight는 입력으로 들어와도 무시.
+//
 
 import Testing
 import Foundation
@@ -69,8 +71,6 @@ struct MarkdownDocumentTests {
         let n = note(pages: [])
         let doc = MarkdownDocument.from(n)
         #expect(doc.sections.isEmpty)
-        #expect(doc.pinkItems.isEmpty)
-        #expect(doc.blueItems.isEmpty)
         #expect(doc.hasAnyContent == false)
     }
 
@@ -149,33 +149,27 @@ struct MarkdownDocumentTests {
         #expect(doc.sections[1].items.map(\.text) == ["글1"])
     }
 
-    // MARK: - 분홍 / 파랑 분리
+    // MARK: - v0.1 비활성 색은 무시
 
-    @Test("분홍·파랑은 본 섹션에 안 들어가고 별도 풀로 분리")
-    func pinkAndBlueSeparated() {
+    @Test("분홍·파랑 highlight는 v0.1에서 무시되어 섹션에 들어가지 않음")
+    func inactiveColorsIgnored() {
         let n = note(pages: [
-            ["o:주제", "y:노랑1", "p:분홍1", "y:노랑2", "b:파랑1", "p:분홍2"],
+            ["o:주제", "y:노랑1", "p:분홍1", "y:노랑2", "b:파랑1"],
         ])
         let doc = MarkdownDocument.from(n)
         #expect(doc.sections.count == 1)
         #expect(doc.sections[0].title == "주제")
-        // 본 섹션에는 노랑만
         #expect(doc.sections[0].items.map(\.text) == ["노랑1", "노랑2"])
-        #expect(doc.pinkItems.map(\.text) == ["분홍1", "분홍2"])
-        #expect(doc.blueItems.map(\.text) == ["파랑1"])
-        #expect(doc.hasSupplementary)
     }
 
-    @Test("분홍/파랑만 있고 본문 0개")
-    func onlySupplementary() {
+    @Test("분홍/파랑만 있는 노트는 빈 document")
+    func onlyInactiveColors() {
         let n = note(pages: [
             ["p:분홍1", "b:파랑1", "b:파랑2"],
         ])
         let doc = MarkdownDocument.from(n)
         #expect(doc.sections.isEmpty)
-        #expect(doc.pinkItems.map(\.text) == ["분홍1"])
-        #expect(doc.blueItems.map(\.text) == ["파랑1", "파랑2"])
-        #expect(doc.hasAnyContent)
+        #expect(doc.hasAnyContent == false)
     }
 
     // MARK: - 페이지 경계 정렬
@@ -242,19 +236,18 @@ struct MarkdownDocumentTests {
 
     // MARK: - spec §6 예시 골든 케이스
 
-    @Test("spec §6 항생제정리 시나리오 — 골든")
+    @Test("spec §6 항생제정리 시나리오 — 골든 (v0.1: 노랑/주황만)")
     func specGoldenAntibiotics() {
         let n = note(title: "항생제정리", pages: [
             // p1
             ["o:항생제의 분류", "y:베타락탐계는 세포벽 합성을 억제", "y:페니실린 알레르기 환자 주의", "o:세팔로스포린은 1~5세대까지"],
-            // p2
+            // p2: 분홍이 입력으로 와도 무시되어야 함
             ["o:부작용 모니터링", "y:신독성 신호 — BUN/Cr 상승", "p:청신경 독성 — 가역적"],
-            // p3
+            // p3: 분홍/파랑만 — 무시되어 섹션에 안 들어감
             ["p:위막성 대장염 — 클로스트리디움 디피실", "b:참고: AST 결과 우선"],
         ])
         let doc = MarkdownDocument.from(n)
 
-        // 본 섹션
         #expect(doc.title == "항생제정리")
         #expect(doc.sections.count == 3)
         #expect(doc.sections[0].title == "항생제의 분류")
@@ -264,10 +257,5 @@ struct MarkdownDocumentTests {
         #expect(doc.sections[1].items.isEmpty)
         #expect(doc.sections[2].title == "부작용 모니터링")
         #expect(doc.sections[2].items.map(\.text) == ["신독성 신호 — BUN/Cr 상승"])
-
-        // 추가 메모
-        #expect(doc.pinkItems.map(\.text) ==
-            ["청신경 독성 — 가역적", "위막성 대장염 — 클로스트리디움 디피실"])
-        #expect(doc.blueItems.map(\.text) == ["참고: AST 결과 우선"])
     }
 }

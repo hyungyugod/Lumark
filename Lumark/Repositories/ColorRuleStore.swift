@@ -9,29 +9,6 @@
 import Foundation
 import SwiftUI
 
-/// ColorRuleStore의 4색 상태를 한 번에 캡처한 값 타입.
-/// MainActor → nonisolated(Exporter) 경계에서 안전하게 전달하기 위함.
-struct ColorRuleSnapshot: Equatable, Sendable {
-    let enabled: [ColorCategory: Bool]
-    let labels: [ColorCategory: String]
-
-    nonisolated init(
-        enabled: [ColorCategory: Bool],
-        labels: [ColorCategory: String]
-    ) {
-        self.enabled = enabled
-        self.labels = labels
-    }
-
-    nonisolated func isEnabled(_ color: ColorCategory) -> Bool {
-        enabled[color] ?? color.defaultEnabled
-    }
-
-    nonisolated func label(for color: ColorCategory) -> String {
-        labels[color] ?? ""
-    }
-}
-
 @MainActor
 @Observable
 final class ColorRuleStore {
@@ -55,30 +32,15 @@ final class ColorRuleStore {
         rule(for: color)?.isEnabled ?? color.defaultEnabled
     }
 
-    /// 표시용 라벨. 사용자가 비워두면 색별 기본 표시 라벨 폴백.
-    /// 분홍·파랑은 마크다운 "추가 메모" 섹션 헤더로도 쓰이므로 기본 라벨이 필요.
+    /// 표시용 라벨. 사용자가 비워두면 색별 기본 라벨 폴백.
     func displayLabel(for color: ColorCategory) -> String {
         let trimmed = rule(for: color)?.label.trimmingCharacters(in: .whitespacesAndNewlines)
         if let trimmed, !trimmed.isEmpty { return trimmed }
         switch color {
         case .yellow: return "핵심"
         case .orange: return "주제"
-        case .pink:   return "보충 (분홍)"
-        case .blue:   return "참고 (파랑)"
+        case .pink, .blue: return ""
         }
-    }
-
-    /// 4색 모두의 (활성/라벨) 스냅샷. nonisolated 출력(MarkdownExporter 등)에
-    /// 통째로 넘기는 용도.
-    func currentSnapshot() -> ColorRuleSnapshot {
-        ColorRuleSnapshot(
-            enabled: Dictionary(uniqueKeysWithValues: ColorCategory.allCases.map {
-                ($0, isEnabled($0))
-            }),
-            labels: Dictionary(uniqueKeysWithValues: ColorCategory.allCases.map {
-                ($0, displayLabel(for: $0))
-            })
-        )
     }
 
     func setLabel(_ label: String, for color: ColorCategory) {

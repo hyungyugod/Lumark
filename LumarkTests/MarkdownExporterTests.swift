@@ -2,7 +2,7 @@
 //  MarkdownExporterTests.swift
 //  LumarkTests
 //
-//  spec §6 출력 포맷 검증.
+//  spec §6 출력 포맷 검증. v0.1: 노랑/주황만.
 //
 
 import Testing
@@ -34,8 +34,6 @@ struct MarkdownExporterTests {
                     ]
                 )
             ],
-            pinkItems: [],
-            blueItems: [],
             createdAt: fixedDate(),
             pageCount: 1,
             originalFilename: "TEST.pdf"
@@ -69,7 +67,6 @@ struct MarkdownExporterTests {
                     items: [MarkdownItem(id: UUID(), color: .yellow, text: "선행")]
                 )
             ],
-            pinkItems: [], blueItems: [],
             createdAt: fixedDate(),
             pageCount: 1,
             originalFilename: nil
@@ -80,78 +77,15 @@ struct MarkdownExporterTests {
         #expect(out.contains("- 선행"))
     }
 
-    @Test("분홍·파랑은 '추가 메모' 섹션, 사용자 라벨 우선")
-    func supplementaryWithCustomLabels() {
-        let doc = MarkdownDocument(
-            title: "T",
-            sections: [],
-            pinkItems: [MarkdownItem(id: UUID(), color: .pink, text: "p1")],
-            blueItems: [MarkdownItem(id: UUID(), color: .blue, text: "b1")],
-            createdAt: fixedDate(),
-            pageCount: 1,
-            originalFilename: nil
-        )
-
-        let labels = ColorRuleSnapshot(
-            enabled: [:],
-            labels: [.pink: "주의", .blue: "출처"]
-        )
-        let out = MarkdownExporter.export(doc, labels: labels)
-        #expect(out.contains("### 추가 메모"))
-        #expect(out.contains("**주의**"))
-        #expect(out.contains("**출처**"))
-        #expect(out.contains("- p1"))
-        #expect(out.contains("- b1"))
-    }
-
-    @Test("분홍·파랑 라벨이 비어있으면 기본값 사용")
-    func supplementaryWithDefaultLabels() {
-        let doc = MarkdownDocument(
-            title: "T",
-            sections: [],
-            pinkItems: [MarkdownItem(id: UUID(), color: .pink, text: "p1")],
-            blueItems: [],
-            createdAt: fixedDate(),
-            pageCount: 1,
-            originalFilename: nil
-        )
-
-        // pink는 공백, blue는 미지정 → 둘 다 폴백
-        let labels = ColorRuleSnapshot(
-            enabled: [:],
-            labels: [.pink: "  "]
-        )
-        let out = MarkdownExporter.export(doc, labels: labels)
-        #expect(out.contains("**보충 (분홍)**"))
-    }
-
-    @Test("본문 0개 + 추가 메모만")
-    func onlySupplementary() {
-        let doc = MarkdownDocument(
-            title: "T",
-            sections: [],
-            pinkItems: [MarkdownItem(id: UUID(), color: .pink, text: "only")],
-            blueItems: [],
-            createdAt: fixedDate(),
-            pageCount: 1,
-            originalFilename: nil
-        )
-
-        let out = MarkdownExporter.export(doc)
-        // 본문 섹션 헤더(line이 "## "로 시작)는 없어야 함 — ### 추가 메모는 supplementary라 OK
-        let lines = out.components(separatedBy: "\n")
-        let hasBodyHeader = lines.contains { $0.hasPrefix("## ") }
-        #expect(hasBodyHeader == false)
-        #expect(out.contains("### 추가 메모"))
-    }
-
     @Test("originalFilename 없으면 '제목.pdf' 사용")
     func footerFilenameFallback() {
         let doc = MarkdownDocument(
             title: "항생제정리",
-            sections: [],
-            pinkItems: [MarkdownItem(id: UUID(), color: .pink, text: "x")],
-            blueItems: [],
+            sections: [
+                MarkdownSection(id: UUID(), title: "분류", items: [
+                    MarkdownItem(id: UUID(), color: .yellow, text: "글")
+                ])
+            ],
             createdAt: fixedDate(),
             pageCount: 3,
             originalFilename: nil
@@ -171,7 +105,6 @@ struct MarkdownExporterTests {
                     MarkdownItem(id: UUID(), color: .yellow, text: "글")
                 ]),
             ],
-            pinkItems: [], blueItems: [],
             createdAt: fixedDate(),
             pageCount: 1,
             originalFilename: nil
@@ -181,6 +114,42 @@ struct MarkdownExporterTests {
         #expect(out.contains("## 제목만"))
         #expect(out.contains("## 본문있음"))
         #expect(out.contains("- 글"))
+    }
+
+    @Test("빈 document는 제목 + footer만")
+    func emptyDocument() {
+        let doc = MarkdownDocument(
+            title: "T",
+            sections: [],
+            createdAt: fixedDate(),
+            pageCount: 0,
+            originalFilename: nil
+        )
+
+        let out = MarkdownExporter.export(doc)
+        let lines = out.components(separatedBy: "\n")
+        let hasBodyHeader = lines.contains { $0.hasPrefix("## ") }
+        #expect(hasBodyHeader == false)
+        #expect(out.contains("# T"))
+        #expect(out.contains("> 변환 정보:"))
+    }
+
+    @Test("Obsidian dialect는 ==형광펜== 래핑")
+    func obsidianDialect() {
+        let doc = MarkdownDocument(
+            title: "T",
+            sections: [
+                MarkdownSection(id: UUID(), title: "분류", items: [
+                    MarkdownItem(id: UUID(), color: .yellow, text: "베타락탐")
+                ])
+            ],
+            createdAt: fixedDate(),
+            pageCount: 1,
+            originalFilename: nil
+        )
+
+        let out = MarkdownExporter.export(doc, dialect: .obsidian)
+        #expect(out.contains("- ==베타락탐=="))
     }
 
     // 통합: from(Note) → export 전체 흐름
@@ -203,6 +172,7 @@ struct MarkdownExporterTests {
         [h1a, h1b].forEach { $0.page = p1 }
         p1.highlights = [h1a, h1b]
 
+        // 분홍은 v0.1에서 무시되어 출력에 안 나타나야 함
         let p2 = Page(pageNumber: 2, imageData: Data())
         p2.note = n
         let h2a = Highlight(colorCategory: .pink, text: "주의사항",
@@ -218,8 +188,7 @@ struct MarkdownExporterTests {
         #expect(out.contains("# 항생제정리"))
         #expect(out.contains("## 항생제의 분류"))
         #expect(out.contains("- 베타락탐계"))
-        #expect(out.contains("### 추가 메모"))
-        #expect(out.contains("- 주의사항"))
+        #expect(out.contains("주의사항") == false)
         #expect(out.contains("> 변환 정보: 항생제정리.pdf · 2페이지 · 2026-05-24 변환"))
     }
 }

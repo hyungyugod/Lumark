@@ -7,7 +7,7 @@
 //  구성:
 //    - 커스텀 nav (back / title / more)
 //    - 탭 토글 (마크다운 / 원본 PDF) — underline
-//    - 4색 필터 칩 행 (가로 스크롤)
+//    - 활성 색 필터 칩 행 (가로 스크롤; v0.1은 노랑/주황)
 //    - 본문 (MarkdownBodyView OR PDFFauxView)
 //    - 하단 액션 바 (복사 / 공유 / PDF 내보내기)
 //
@@ -36,7 +36,7 @@ struct ResultView: View {
     /// init 시점에 한 번만 평가됨 — 사용자가 설정에서 활성 토글하더라도
     /// 결과 화면 안의 chips는 화면 내 토글로만 변함 (의도된 분리).
     private static func initialChips() -> [ColorCategory: Bool] {
-        Dictionary(uniqueKeysWithValues: ColorCategory.allCases.map {
+        Dictionary(uniqueKeysWithValues: ColorCategory.activeInV01.map {
             ($0, ColorRuleStore.shared.isEnabled($0))
         })
     }
@@ -76,9 +76,7 @@ struct ResultView: View {
                         case .markdown:
                             MarkdownBodyView(
                                 document: document,
-                                chips: chips,
-                                pinkLabel: store.displayLabel(for: .pink),
-                                blueLabel: store.displayLabel(for: .blue)
+                                chips: chips
                             )
                         case .pdf:
                             PDFFauxView(document: document, chips: chips)
@@ -264,7 +262,7 @@ struct ResultView: View {
     private var chipBar: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
-                ForEach(ColorCategory.allCases) { color in
+                ForEach(ColorCategory.activeInV01) { color in
                     ColorFilterChip(
                         color: color,
                         label: chipLabel(color),
@@ -297,18 +295,11 @@ struct ResultView: View {
         MarkdownDocument.from(note)
     }
 
-    /// MainActor → nonisolated 경계를 건너기 위한 라벨/활성 스냅샷.
-    /// ColorRuleStore가 사용자 설정의 단일 출처.
-    private var labelSnapshot: ColorRuleSnapshot {
-        store.currentSnapshot()
-    }
-
     private func copy() {
         let prefs = ExportPreferences.shared
         let md = MarkdownExporter.export(
             currentDoc,
             dialect: prefs.dialect,
-            labels: labelSnapshot,
             includePageMap: prefs.includePageMap
         )
         UIPasteboard.general.string = md
@@ -321,7 +312,6 @@ struct ResultView: View {
         let md = MarkdownExporter.export(
             currentDoc,
             dialect: prefs.dialect,
-            labels: labelSnapshot,
             includePageMap: prefs.includePageMap
         )
         shareItems = [md]
@@ -331,10 +321,9 @@ struct ResultView: View {
         guard !isPreparingExport else { return }
         isPreparingExport = true
         let doc = currentDoc
-        let labels = labelSnapshot
         Task.detached(priority: .userInitiated) {
             do {
-                let url = try PDFExporter.export(doc, labels: labels)
+                let url = try PDFExporter.export(doc)
                 await MainActor.run {
                     self.isPreparingExport = false
                     self.shareItems = [url]
