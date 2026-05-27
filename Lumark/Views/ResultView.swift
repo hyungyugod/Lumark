@@ -23,6 +23,7 @@ struct ResultView: View {
     @Environment(\.modelContext) private var modelContext
     @Query private var allNotes: [Note]
     @State private var store = ColorRuleStore.shared
+    @State private var debugPrefs = DebugPreferences.shared
 
     enum Tab: String { case markdown, pdf }
 
@@ -58,6 +59,12 @@ struct ResultView: View {
         allNotes.contains { $0.id == note.id }
     }
 
+    /// 실제 파이프라인이 만들어 imageData가 채워진 페이지가 있는가.
+    /// Mock 노트(MockData.antibioticsNote)는 imageData가 비어있어 PDFFauxView로 폴백.
+    private var hasRealPageImages: Bool {
+        note.pages.contains { !$0.imageData.isEmpty }
+    }
+
     var body: some View {
         let document = MarkdownDocument.from(note)
 
@@ -79,7 +86,14 @@ struct ResultView: View {
                                 chips: chips
                             )
                         case .pdf:
-                            PDFFauxView(document: document, chips: chips)
+                            if hasRealPageImages {
+                                DetectionOverlayView(
+                                    note: note,
+                                    showOverlay: debugPrefs.showDetectionOverlay
+                                )
+                            } else {
+                                PDFFauxView(document: document, chips: chips)
+                            }
                         }
                     }
                     .padding(.horizontal, 22)

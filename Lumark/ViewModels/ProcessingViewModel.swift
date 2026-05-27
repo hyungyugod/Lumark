@@ -263,6 +263,9 @@ final class ProcessingViewModel {
             originalFilename: filename
         )
 
+        // SwiftData @Model 관계: ModelContext 밖에선 append가 불안정.
+        // 배열 통째로 할당해 양방향이 확실히 묶이도록 한다.
+        var allPages: [Page] = []
         for (idx, image) in pages.enumerated() {
             let pageData = image.jpegData(compressionQuality: 0.78) ?? Data()
             let page = Page(pageNumber: idx + 1, imageData: pageData)
@@ -270,6 +273,7 @@ final class ProcessingViewModel {
 
             let regions = perPageRegions[idx]
             let texts = perPageTexts[idx]
+            var hs: [Highlight] = []
             var order = 0
             for (rIdx, region) in regions.enumerated() {
                 let text = rIdx < texts.count ? texts[rIdx] : ""
@@ -282,13 +286,13 @@ final class ProcessingViewModel {
                     orderInPage: order
                 )
                 h.page = page
-                page.highlights.append(h)
+                hs.append(h)
                 order += 1
             }
-
-            note.pages.append(page)
+            page.highlights = hs
+            allPages.append(page)
         }
-
+        note.pages = allPages
         return note
     }
 

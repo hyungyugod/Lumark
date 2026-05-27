@@ -38,15 +38,22 @@ struct HighlightDetectorOptions: Sendable {
     var minRegionRatio: Double = 0.00015
     /// bbox 패딩 — OCR에 더 넉넉히 자르기 위한 여유. 작업 해상도 짧은 변의 비율.
     var paddingRatio: Double = 0.012
+    /// Morphological closing 반복 수. 형광펜 위에 인쇄된 텍스트 글리프는 HSV
+    /// 범위 밖이라 마스크에 구멍을 만들어 한 highlight를 여러 blob으로 쪼갠다.
+    /// dilate K번 → erode K번으로 ~2K픽셀까지의 글자 stroke를 메운다.
+    /// 0이면 closing 끄기.
+    var closingRadius: Int = 2
 
     nonisolated init(
         workingDimension: CGFloat = 1200,
         minRegionRatio: Double = 0.00015,
-        paddingRatio: Double = 0.012
+        paddingRatio: Double = 0.012,
+        closingRadius: Int = 2
     ) {
         self.workingDimension = workingDimension
         self.minRegionRatio = minRegionRatio
         self.paddingRatio = paddingRatio
+        self.closingRadius = closingRadius
     }
 }
 
@@ -80,9 +87,12 @@ nonisolated enum HighlightDetector {
 
         var regions: [DetectedRegion] = []
 
-        // 2. 활성 색마다 마스크 → 연결요소 → bbox
+        // 2. 활성 색마다 마스크 → closing → 연결요소 → bbox
         for rule in activeRules {
-            let mask = buildMask(pixels: pixels, w: w, h: h, range: rule.hsvRange)
+            var mask = buildMask(pixels: pixels, w: w, h: h, range: rule.hsvRange)
+            if options.closingRadius > 0 {
+                morphologicalClose(&mask, w: w, h: h, radius: options.closingRadius)
+            }
             let blobs = connectedComponents(mask: mask, w: w, h: h, minArea: minArea)
 
             for blob in blobs {
@@ -214,6 +224,110 @@ nonisolated enum HighlightDetector {
         }
 
         return mask
+    }
+
+    // MARK: - Morphological closing (separable sliding window)
+
+    /// dilate(R) → erode(R). (2R+1)×(2R+1) square structuring element.
+    /// 텍스트 stroke가 만든 ~2R픽셀 폭 구멍을 메운다. 인접한 두 highlight가
+    /// 2R픽셀 미만으로 떨어져 있으면 합쳐질 수 있으니 radius는 작게 유지.
+    /// 분리 가능 구현이라 O(w*h) per pass — 18s → <1s 차이.
+    private static func morphologicalClose(_ mask: inout [UInt8], w: Int, h: Int, radius: Int) {
+        guard radius > 0 else { return }
+        dilateSeparable(&mask, w: w, h: h, radius: radius)
+        erodeSeparable(&mask, w: w, h: h, radius: radius)
+    }
+
+    /// 슬라이딩 윈도우 dilate. 각 픽셀: [x-r, x+r] 안에 켜진 픽셀이 있으면 1.
+    private static func dilateSeparable(_ mask: inout [UInt8], w: Int, h: Int, radius: Int) {
+        slidingWindow(&mask, w: w, h: h, radius: radius, threshold: 1)
+    }
+
+    /// 슬라이딩 윈도우 erode. 각 픽셀: [x-r, x+r] 안이 모두 켜져 있어야 1.
+    private static func erodeSeparable(_ mask: inout [UInt8], w: Int, h: Int, radius: Int) {
+        // window size = 2r+1. 모두 켜져 있을 조건 = count == windowSize.
+        // 단, 경계에서는 가용 픽셀 수만큼만 따짐.
+        slidingWindowMin(&mask, w: w, h: h, radius: radius)
+    }
+
+    /// 행 → 열 두 번에 걸쳐 sliding count로 픽셀이 켜진 게 threshold개 이상이면 on.
+    /// dilate: threshold=1.
+    private static func slidingWindow(_ mask: inout [UInt8], w: Int, h: Int, radius: Int, threshold: Int) {
+        var tmp = [UInt8](repeating: 0, count: w * h)
+        mask.withUnsafeMutableBufferPointer { mPtr in
+            tmp.withUnsafeMutableBufferPointer { tPtr in
+                // 행 방향
+                for y in 0..<h {
+                    let row = y * w
+                    var count = 0
+                    let limit = min(radius, w - 1)
+                    for x in 0...limit { if mPtr[row + x] != 0 { count += 1 } }
+                    for x in 0..<w {
+                        tPtr[row + x] = count >= threshold ? 1 : 0
+                        let addIdx = x + radius + 1
+                        if addIdx < w, mPtr[row + addIdx] != 0 { count += 1 }
+                        let remIdx = x - radius
+                        if remIdx >= 0, mPtr[row + remIdx] != 0 { count -= 1 }
+                    }
+                }
+                // 열 방향 (tmp → mask)
+                for x in 0..<w {
+                    var count = 0
+                    let limit = min(radius, h - 1)
+                    for y in 0...limit { if tPtr[y * w + x] != 0 { count += 1 } }
+                    for y in 0..<h {
+                        mPtr[y * w + x] = count >= threshold ? 1 : 0
+                        let addIdx = y + radius + 1
+                        if addIdx < h, tPtr[addIdx * w + x] != 0 { count += 1 }
+                        let remIdx = y - radius
+                        if remIdx >= 0, tPtr[remIdx * w + x] != 0 { count -= 1 }
+                    }
+                }
+            }
+        }
+    }
+
+    /// erode (sliding window minimum): 윈도우 내 모든 픽셀이 켜져 있어야 1.
+    /// count == windowSize (실제 가용 크기)인 경우에만 1.
+    private static func slidingWindowMin(_ mask: inout [UInt8], w: Int, h: Int, radius: Int) {
+        var tmp = [UInt8](repeating: 0, count: w * h)
+        mask.withUnsafeMutableBufferPointer { mPtr in
+            tmp.withUnsafeMutableBufferPointer { tPtr in
+                // 행 방향
+                for y in 0..<h {
+                    let row = y * w
+                    var count = 0
+                    let limit = min(radius, w - 1)
+                    for x in 0...limit { if mPtr[row + x] != 0 { count += 1 } }
+                    for x in 0..<w {
+                        let lo = max(0, x - radius)
+                        let hi = min(w - 1, x + radius)
+                        let winSize = hi - lo + 1
+                        tPtr[row + x] = count == winSize ? 1 : 0
+                        let addIdx = x + radius + 1
+                        if addIdx < w, mPtr[row + addIdx] != 0 { count += 1 }
+                        let remIdx = x - radius
+                        if remIdx >= 0, mPtr[row + remIdx] != 0 { count -= 1 }
+                    }
+                }
+                // 열 방향
+                for x in 0..<w {
+                    var count = 0
+                    let limit = min(radius, h - 1)
+                    for y in 0...limit { if tPtr[y * w + x] != 0 { count += 1 } }
+                    for y in 0..<h {
+                        let lo = max(0, y - radius)
+                        let hi = min(h - 1, y + radius)
+                        let winSize = hi - lo + 1
+                        mPtr[y * w + x] = count == winSize ? 1 : 0
+                        let addIdx = y + radius + 1
+                        if addIdx < h, tPtr[addIdx * w + x] != 0 { count += 1 }
+                        let remIdx = y - radius
+                        if remIdx >= 0, tPtr[remIdx * w + x] != 0 { count -= 1 }
+                    }
+                }
+            }
+        }
     }
 
     // MARK: - 연결요소 라벨링 (4-이웃 BFS)

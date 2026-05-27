@@ -12,6 +12,7 @@ import SwiftUI
 struct SettingsView: View {
     @State private var store = ColorRuleStore.shared
     @State private var exportPrefs = ExportPreferences.shared
+    @State private var debugPrefs = DebugPreferences.shared
     @Environment(\.dismiss) private var dismiss
     @FocusState private var focusedColor: ColorCategory?
 
@@ -24,6 +25,7 @@ struct SettingsView: View {
                     colorMappingSection
                     exportSection
                     structureRuleSection
+                    debugSection
                     aboutSection
                 }
                 .scrollContentBackground(.hidden)
@@ -190,6 +192,30 @@ struct SettingsView: View {
             }
         }
         .padding(.vertical, 4)
+    }
+
+    // MARK: - 디버그 (검출 시각화)
+
+    private var debugSection: some View {
+        Section {
+            Toggle(isOn: Binding(
+                get: { debugPrefs.showDetectionOverlay },
+                set: { debugPrefs.showDetectionOverlay = $0 }
+            )) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("검출 영역 표시")
+                        .font(.system(size: 14))
+                        .foregroundStyle(Palette.ink)
+                    Text("결과 화면 \"원본\" 탭에서 형광펜 검출 박스를 페이지 위에 덧그려요. HSV 임계값 튜닝용.")
+                        .font(.system(size: 11.5))
+                        .foregroundStyle(Palette.subtle)
+                }
+            }
+            .tint(Palette.brown)
+        } header: {
+            sectionHeader("디버그", subtitle: "검증·튜닝용 옵션")
+        }
+        .listRowBackground(Palette.surface)
     }
 
     // MARK: - 앱 정보

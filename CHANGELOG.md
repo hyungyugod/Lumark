@@ -73,6 +73,15 @@
 - **OCRServiceTests (3)** — Vision 호출 contract smoke. 빈 regions, regions 길이 일치, 합성 영문 텍스트 → 비어있지 않은 결과.
 - 총 단위 테스트 31 → 41개.
 
+### Added (E2E 검증 + 디버그 오버레이 — 2026-05-27)
+- **`PipelineIntegrationTests` (2)** — HighlightDetector → OCRService → MarkdownDocument 한 바퀴. 합성 페이지(흰 배경 + 형광 사각형 + 검정 텍스트)로 색 카운트·섹션 구조·OCR 텍스트 토큰을 동시에 검증. ProcessingViewModel.assembleNote와 일치하는 SwiftData 그래프 조립 패턴을 외부에서 mirror — 둘이 어긋나면 이 테스트가 잡는다.
+- **Morphological closing (HighlightDetector)** — 형광펜 위 검정 텍스트 글리프는 HSV 범위 밖이라 마스크에 구멍을 만들어 한 highlight를 여러 blob으로 쪼갠다. dilate K번 → erode K번으로 ~2K픽셀 폭 stroke를 메움. **Separable sliding window**로 구현해 1200x1600 페이지에서 ~1.5s/페이지 (naïve 8-이웃 반복 ~18s/페이지의 12배 빠름).
+- **`DebugPreferences`** — UserDefaults 영속 토글. v0.1은 `showDetectionOverlay` 하나. Day 2~4 합격 게이트 HSV 튜닝 작업의 단일 진입점.
+- **`DetectionOverlayView`** — Note의 페이지 imageData를 디코드해 표시 + (옵션) Highlight bbox를 색별 외곽선 + 18% 채움으로 덧그림. ResultView "원본" 탭이 실 페이지가 있으면 이걸 쓰고, mock 노트는 PDFFauxView 폴백.
+- **SettingsView 디버그 섹션** — "검출 영역 표시" 토글 + 안내 문구.
+- **`Note.pages` / `Page.highlights` 배열 할당으로 통일** — ModelContext 밖에선 `append`가 불안정해 통합 테스트가 0개 섹션을 보던 문제. ProcessingViewModel.assembleNote도 동일 패턴으로 정리.
+- 총 단위 테스트 41 → 43개.
+
 ### Changed (v0.1 색 범위 축소 — 2026-05-26)
 - **v0.1 활성 색을 노랑/주황으로 한정.** 실제 간호학 PDF 페이지(여성건강간호학 §대아심박동) 검토 결과 분홍/파랑은 본문 섹션에서 분리하기보다 본문에 inline으로 자연스럽고, 분홍/파랑 highlight 자체가 페이지에 없는 경우가 더 흔함. 분홍/파랑 검출·렌더는 v0.2+ 백로그로 이동.
 - 단일 진리원으로 `ColorCategory.activeInV01: [.yellow, .orange]` 도입 — UI/defaults/exporters 모두 이걸 사용. v0.2에서 케이스 추가만으로 재활성.
