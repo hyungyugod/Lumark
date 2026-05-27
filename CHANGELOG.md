@@ -58,9 +58,20 @@
   - S1: HSV 마스킹 정밀도 ≥ 95% / 재현율 ≥ 90%
   - S2: OCR CER ≤ 5% / WER ≤ 10%
   - S3: 섹션 분할 일치 ≥ 90% (알고리즘 부분은 이미 단위 테스트로 잠금)
-- **실제 OCR 파이프라인** — `HighlightDetector` + `OCRService` 구현 후 ProcessingViewModel.runMock 교체
 - **Share Extension Target 생성** — Xcode UI에서 capability + target + Info.plist 수동 설정
 - **친구 alpha 테스트 (Day 11+)** — 본인 + 친구 1~2명 매일 사용 1주 지속 목표
+
+### Added (실제 OCR 파이프라인 — 2026-05-27)
+- **`HighlightDetector`** — Core Image 의존 없이 픽셀 직접 처리. 작업 해상도(긴 변 1200px) 다운샘플 → RGBA8 → HSV 마스크 → 4-이웃 BFS 연결요소 → minArea 노이즈 컷 → 원본 좌표 역매핑. 정렬은 줄(line) 키 양자화 후 y → x. 활성 색·`isEnabled` 둘 다 만족하는 룰만 사용.
+- **`OCRService`** — Vision `VNRecognizeTextRequest` `.accurate` + `recognitionLanguages = ["ko-KR", "en-US"]`. 영역별로 CGImage cropping 후 OCR. observation 정렬은 normalized Vision 좌표(좌하단 원점) 기준 위→아래, 왼→오른쪽. 영역 OCR 실패 = 빈 문자열.
+- **`ProcessingViewModel.runReal`** — `runMock`을 디자인 fallback으로 보존하고, `source != nil`일 때 실제 파이프라인 실행. 단계별 진행률(splittingPages 10% / detect 20% / OCR 55% / assemble 15%) + 페이지별 currentPage 갱신.
+- **에러 surface** — `ProcessingViewModel.error: LumarkError?` 추가, `ProcessingView`에 `.errorAlert(error:)` 연결. spec §8 케이스 매핑: PDF 손상 → `.pdfCorrupted`, 검출 0개 → `.noHighlightsDetected`, OCR 전부 빈 문자열 → `.ocrAllEmpty`, 그 외 → `.wrapped`.
+- **`Note` 그래프 조립** — PageRenderer가 만든 UIImage를 JPEG로 직렬화해 `Page.imageData`(외부 스토리지)에 저장. OCR 빈 문자열은 `Highlight` 생성에서 스킵해 spec §8 "부분 성공 허용".
+
+### Testing (2026-05-27)
+- **HighlightDetectorTests (7)** — 합성 UIImage로 contract 잠금. 단일 노랑 블롭, 노랑+주황 혼합, 빈 페이지, 비활성 색 무시, minArea 필터링, 위→아래 정렬, 빈 rules.
+- **OCRServiceTests (3)** — Vision 호출 contract smoke. 빈 regions, regions 길이 일치, 합성 영문 텍스트 → 비어있지 않은 결과.
+- 총 단위 테스트 31 → 41개.
 
 ### Changed (v0.1 색 범위 축소 — 2026-05-26)
 - **v0.1 활성 색을 노랑/주황으로 한정.** 실제 간호학 PDF 페이지(여성건강간호학 §대아심박동) 검토 결과 분홍/파랑은 본문 섹션에서 분리하기보다 본문에 inline으로 자연스럽고, 분홍/파랑 highlight 자체가 페이지에 없는 경우가 더 흔함. 분홍/파랑 검출·렌더는 v0.2+ 백로그로 이동.

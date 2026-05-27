@@ -118,6 +118,14 @@ struct ProcessingView: View {
                 onFinish(note)
             }
         }
+        .errorAlert(error: Binding(
+            get: { vm.error },
+            set: { vm.error = $0 }
+        )) { _ in
+            // 어떤 액션이든 — 현재 화면을 닫는다. 부분 성공 같은 케이스는
+            // 향후 .partialSuccess일 때만 onFinish로 분기.
+            onCancel()
+        }
     }
 
     // MARK: - 단계 리스트
