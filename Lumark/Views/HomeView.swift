@@ -4,10 +4,11 @@
 //
 //  앱 진입 화면. 디자인: Lumark_design/HomeView.html.
 //
-//  v0.1 디자인 단계의 네비게이션 동선:
-//    홈 ─ 업로드(PhotosPicker) ─→ Processing(Mock) ─→ Result(Mock note)
-//    홈 ─ 최근 작업 row 탭     ─→ Result(해당 Note)
-//    홈 ─ 설정 / 톱니 버튼      ─→ Settings (sheet)
+//  v0.1 네비게이션 동선:
+//    홈 ─ 업로드(PhotosPicker 다중 OR FileImporter) ─→ Processing ─→ Result
+//    홈 ─ 카메라(DocumentScanner 다중 페이지)        ─→ Processing ─→ Result
+//    홈 ─ 최근 작업 row 탭                          ─→ Result(해당 Note)
+//    홈 ─ 설정 / 톱니 버튼                           ─→ Settings (sheet)
 //
 
 import SwiftUI
@@ -40,8 +41,11 @@ struct HomeView: View {
     // 카메라
     @State private var showingScanner = false
 
-    // PhotosPicker
-    @State private var photoItem: PhotosPickerItem?
+    // PhotosPicker — 다중 선택
+    @State private var photoItems: [PhotosPickerItem] = []
+    /// 한 번에 변환 가능한 최대 페이지 수.
+    /// OCR이 외부 API(Gemini 등)일 때 토큰 비용 상한 보장 — 무료 배포라 개발자 자비 부담.
+    private let maxPagesPerConversion = 20
 
     // 에러
     @State private var activeError: LumarkError?
@@ -107,7 +111,9 @@ struct HomeView: View {
             }
             .photosPicker(
                 isPresented: $showingPhotosPicker,
-                selection: $photoItem,
+                selection: $photoItems,
+                maxSelectionCount: maxPagesPerConversion,
+                selectionBehavior: .ordered,
                 matching: .images,
                 photoLibrary: .shared()
             )
@@ -135,8 +141,9 @@ struct HomeView: View {
                 )
                 .ignoresSafeArea()
             }
-            .onChange(of: photoItem) { _, newItem in
-                Task { await loadPickedItem(newItem) }
+            .onChange(of: photoItems) { _, newItems in
+                guard !newItems.isEmpty else { return }
+                Task { await loadPickedItems(newItems) }
             }
             .onChange(of: router.pendingDeeplink) { _, deeplink in
                 if let dl = deeplink {
@@ -352,20 +359,38 @@ struct HomeView: View {
 
     // MARK: Picker handler
 
-    private func loadPickedItem(_ item: PhotosPickerItem?) async {
-        guard let item else { return }
-        guard let data = try? await item.loadTransferable(type: Data.self) else {
-            await MainActor.run { self.activeError = .wrapped(code: "PHOTO-LOAD", message: "사진을 불러올 수 없어요.") }
-            return
+    /// 다중 선택된 사진들을 순차로 로드. 선택 순서대로 페이지가 됨.
+    /// 모두 실패하면 에러, 일부만 실패하면 성공한 것들로 진행 (부분 성공 — spec §8).
+    private func loadPickedItems(_ items: [PhotosPickerItem]) async {
+        var loaded: [Data] = []
+        loaded.reserveCapacity(items.count)
+        for item in items {
+            if let data = try? await item.loadTransferable(type: Data.self) {
+                loaded.append(data)
+            }
         }
         await MainActor.run {
+            guard !loaded.isEmpty else {
+                self.activeError = .wrapped(code: "PHOTO-LOAD", message: "사진을 불러올 수 없어요.")
+                self.photoItems = []
+                return
+            }
             startProcessing(
-                filename: "선택한 사진.png",
-                totalPages: 1,
-                source: .image(data)
+                filename: photoFilename(count: loaded.count),
+                totalPages: loaded.count,
+                source: .images(loaded)
             )
-            self.photoItem = nil // 다음 선택 위해 리셋
+            self.photoItems = [] // 다음 선택 위해 리셋
         }
+    }
+
+    /// 선택한 사진 N장에 붙일 표시용 파일명.
+    private func photoFilename(count: Int) -> String {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "ko_KR")
+        f.dateFormat = "M월 d일 HH:mm"
+        let ts = f.string(from: .now)
+        return count == 1 ? "사진 \(ts)" : "사진 \(ts) (\(count)장)"
     }
 
     private func handleFileImport(_ result: Result<[URL], Error>) {
@@ -397,9 +422,18 @@ struct HomeView: View {
                 return
             }
 
+            // 20장 상한 — 외부 OCR 토큰 비용 보호
+            if pages > maxPagesPerConversion {
+                activeError = .wrapped(
+                    code: "PAGE-LIMIT",
+                    message: "한 번에 최대 \(maxPagesPerConversion)페이지까지 변환할 수 있어요. PDF를 나눠서 올려주세요. (현재 \(pages)페이지)"
+                )
+                return
+            }
+
             // 크기 체크
             let sizeMB = fileSizeMB(at: url)
-            if pages > 100 || (sizeMB ?? 0) > 50 {
+            if (sizeMB ?? 0) > 50 {
                 // 사용자 확인이 필요 — pendingLargeFile 보관 후 alert로 진행 여부 물음
                 do {
                     let staged = try stage(url: url)
@@ -431,7 +465,7 @@ struct HomeView: View {
             startProcessing(
                 filename: url.lastPathComponent,
                 totalPages: 1,
-                source: .image(data)
+                source: .images([data])
             )
         }
     }
@@ -463,18 +497,22 @@ struct HomeView: View {
 
     private func ingestScannedImages(_ images: [UIImage]) {
         guard !images.isEmpty else { return }
-        // 다중 페이지 스캔 → 단일 PDF로 합치는 게 자연스럽지만, v0.1은 첫 이미지만 처리.
-        // v0.2: 스캔 결과 N장 → 다중 페이지 Note로 직접 변환.
-        guard let first = images.first,
-              let data = first.jpegData(compressionQuality: 0.9) else {
+        // 스캔 결과 N장을 모두 페이지로. 인코딩 실패한 이미지는 스킵 (부분 성공).
+        var datas = images.compactMap { $0.jpegData(compressionQuality: 0.9) }
+        guard !datas.isEmpty else {
             activeError = .wrapped(code: "CAM-ENCODE", message: "촬영 결과를 인코딩할 수 없어요.")
             return
         }
-        let filename = "스캔 \(scanTimestamp()).jpg"
+        // 20장 상한 — 외부 OCR 토큰 비용 보호
+        if datas.count > maxPagesPerConversion {
+            datas = Array(datas.prefix(maxPagesPerConversion))
+        }
+        let ts = scanTimestamp()
+        let filename = datas.count == 1 ? "스캔 \(ts).jpg" : "스캔 \(ts) (\(datas.count)장)"
         startProcessing(
             filename: filename,
-            totalPages: images.count,
-            source: .image(data)
+            totalPages: datas.count,
+            source: .images(datas)
         )
     }
 
@@ -513,22 +551,27 @@ struct HomeView: View {
 
         // 영속화: 백그라운드/콜드 재시작 대비
         let stagedURL: URL?
-        let imageDataPath: String?
+        let imageDataPaths: [String]?
         let isPDF: Bool
         switch source {
         case .pdf(let url):
             stagedURL = url
-            imageDataPath = nil
+            imageDataPaths = nil
             isPDF = true
-        case .image(let data):
+        case .images(let datas):
             stagedURL = nil
-            // 이미지 데이터를 디스크에 저장해 재개 가능하게
+            // 이미지 N장을 디스크에 페이지 순서로 저장해 재개 가능하게.
             let dir = FileManager.default.temporaryDirectory
                 .appendingPathComponent("jobs", isDirectory: true)
+                .appendingPathComponent(id.uuidString, isDirectory: true)
             try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-            let path = dir.appendingPathComponent("\(id.uuidString).img")
-            try? data.write(to: path, options: .atomic)
-            imageDataPath = path.path
+            var paths: [String] = []
+            for (idx, data) in datas.enumerated() {
+                let path = dir.appendingPathComponent(String(format: "p%04d.img", idx))
+                try? data.write(to: path, options: .atomic)
+                paths.append(path.path)
+            }
+            imageDataPaths = paths
             isPDF = false
         }
         JobStateStore.shared.register(JobState(
@@ -536,7 +579,7 @@ struct HomeView: View {
             filename: filename,
             totalPages: totalPages,
             stagedURL: stagedURL,
-            imageDataPath: imageDataPath,
+            imageDataPaths: imageDataPaths,
             isPDF: isPDF,
             inboxID: inboxID
         ))
@@ -556,9 +599,13 @@ struct HomeView: View {
         if job.isPDF, let url = job.stagedURL,
            FileManager.default.fileExists(atPath: url.path) {
             source = .pdf(url)
-        } else if let path = job.imageDataPath,
-                  let data = try? Data(contentsOf: URL(fileURLWithPath: path)) {
-            source = .image(data)
+        } else if let paths = job.imageDataPaths, !paths.isEmpty {
+            let datas = paths.compactMap { try? Data(contentsOf: URL(fileURLWithPath: $0)) }
+            guard !datas.isEmpty else {
+                JobStateStore.shared.finish(id: job.id)
+                return
+            }
+            source = .images(datas)
         } else {
             // 파일이 사라졌으면 잡 폐기
             JobStateStore.shared.finish(id: job.id)
@@ -597,12 +644,20 @@ struct HomeView: View {
                     AppGroup.cleanup(id: id)
                     return
                 }
+                guard doc.pageCount <= maxPagesPerConversion else {
+                    activeError = .wrapped(
+                        code: "PAGE-LIMIT",
+                        message: "한 번에 최대 \(maxPagesPerConversion)페이지까지 변환할 수 있어요. (현재 \(doc.pageCount)페이지)"
+                    )
+                    AppGroup.cleanup(id: id)
+                    return
+                }
                 pageCount = doc.pageCount
                 source = .pdf(dataURL)
             } else {
                 pageCount = 1
                 if let data = try? Data(contentsOf: dataURL) {
-                    source = .image(data)
+                    source = .images([data])
                 } else {
                     activeError = .wrapped(code: "IMG-READ", message: "이미지를 읽을 수 없어요.")
                     AppGroup.cleanup(id: id)

@@ -15,8 +15,10 @@ enum HomeRoute: Hashable {
 }
 
 /// 변환 입력 소스.
+/// - `images` 는 N장(1~100). PhotosPicker 다중 선택 / 카메라 다중 스캔이 모두 통과.
+/// - `pdf` 는 다중 페이지 파일 1개.
 enum JobSource: Sendable {
-    case image(Data)
+    case images([Data])
     case pdf(URL)
 }
 

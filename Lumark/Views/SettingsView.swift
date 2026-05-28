@@ -13,8 +13,12 @@ struct SettingsView: View {
     @State private var store = ColorRuleStore.shared
     @State private var exportPrefs = ExportPreferences.shared
     @State private var debugPrefs = DebugPreferences.shared
+    @State private var ocrPrefs = OCRPreferences.shared
+    @State private var geminiKeyInput: String = ""
+    @State private var showingGeminiKeySaved = false
     @Environment(\.dismiss) private var dismiss
     @FocusState private var focusedColor: ColorCategory?
+    @FocusState private var geminiKeyFocused: Bool
 
     var body: some View {
         NavigationStack {
@@ -23,6 +27,7 @@ struct SettingsView: View {
 
                 Form {
                     colorMappingSection
+                    ocrEngineSection
                     exportSection
                     structureRuleSection
                     debugSection
@@ -119,6 +124,145 @@ struct SettingsView: View {
     private func placeholder(for c: ColorCategory) -> String {
         let d = c.defaultLabel
         return d.isEmpty ? "라벨 (예: 보충, 주의)" : "라벨 (기본: \(d))"
+    }
+
+    // MARK: - OCR 엔진
+
+    private var ocrEngineSection: some View {
+        Section {
+            // 엔진 picker
+            Picker("엔진", selection: Binding(
+                get: { ocrPrefs.engine },
+                set: { ocrPrefs.engine = $0 }
+            )) {
+                ForEach(OCREngine.allCases) { engine in
+                    Text(engine.displayName).tag(engine)
+                }
+            }
+            .font(.system(size: 14))
+
+            // 엔진 설명
+            Text(ocrPrefs.engine.blurb)
+                .font(.system(size: 11.5))
+                .foregroundStyle(Palette.subtle)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.vertical, 2)
+
+            // Gemini 선택 시 모델 picker
+            if ocrPrefs.engine == .geminiFlash {
+                Picker("모델", selection: Binding(
+                    get: { ocrPrefs.geminiModel },
+                    set: { ocrPrefs.geminiModel = $0 }
+                )) {
+                    ForEach(GeminiModel.allCases) { m in
+                        Text(m.displayName).tag(m)
+                    }
+                }
+                .font(.system(size: 14))
+
+                Text(ocrPrefs.geminiModel.blurb)
+                    .font(.system(size: 11.5))
+                    .foregroundStyle(Palette.subtle)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.vertical, 2)
+            }
+
+            // Gemini 선택 시 API 키 입력
+            if ocrPrefs.engine.requiresAPIKey {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(spacing: 6) {
+                        Image(systemName: ocrPrefs.hasGeminiKey ? "checkmark.seal.fill" : "key")
+                            .font(.system(size: 12))
+                            .foregroundStyle(ocrPrefs.hasGeminiKey ? Palette.brown : Palette.muted)
+                        Text(ocrPrefs.hasGeminiKey ? "API 키 등록됨" : "API 키 미등록")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(Palette.ink)
+                    }
+
+                    SecureField(
+                        ocrPrefs.hasGeminiKey ? "새 키로 교체 (현재 키는 표시되지 않음)" : "AIza... 로 시작하는 키",
+                        text: $geminiKeyInput
+                    )
+                    .font(Typo.mono)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .focused($geminiKeyFocused)
+                    .submitLabel(.done)
+                    .onSubmit { saveGeminiKey() }
+
+                    HStack(spacing: 10) {
+                        Button {
+                            saveGeminiKey()
+                        } label: {
+                            Text("저장")
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundStyle(Palette.cream)
+                                .padding(.horizontal, 14)
+                                .padding(.vertical, 7)
+                                .background(
+                                    Capsule().fill(
+                                        geminiKeyInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                                            ? Palette.muted
+                                            : Palette.brown
+                                    )
+                                )
+                        }
+                        .disabled(geminiKeyInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                        .buttonStyle(.plain)
+
+                        if ocrPrefs.hasGeminiKey {
+                            Button {
+                                ocrPrefs.setGeminiAPIKey("")  // 빈 문자열 = 삭제
+                                geminiKeyInput = ""
+                            } label: {
+                                Text("키 삭제")
+                                    .font(.system(size: 13))
+                                    .foregroundStyle(Palette.brown)
+                            }
+                            .buttonStyle(.plain)
+                        }
+
+                        Spacer()
+                    }
+
+                    if showingGeminiKeySaved {
+                        Text("저장 완료")
+                            .font(.system(size: 11.5))
+                            .foregroundStyle(Palette.brown)
+                            .transition(.opacity)
+                    }
+
+                    Link(destination: URL(string: "https://aistudio.google.com/app/apikey")!) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "arrow.up.forward.square")
+                                .font(.system(size: 11))
+                            Text("Google AI Studio에서 키 발급 (무료)")
+                                .font(.system(size: 12))
+                        }
+                        .foregroundStyle(Palette.brown)
+                    }
+                }
+                .padding(.vertical, 4)
+            }
+        } header: {
+            sectionHeader("OCR 엔진", subtitle: "형광펜 영역의 텍스트를 어떻게 읽을지")
+        }
+        .listRowBackground(Palette.surface)
+    }
+
+    private func saveGeminiKey() {
+        let trimmed = geminiKeyInput.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        ocrPrefs.setGeminiAPIKey(trimmed)
+        geminiKeyInput = ""
+        geminiKeyFocused = false
+        withAnimation(.easeIn(duration: 0.15)) { showingGeminiKeySaved = true }
+        Task {
+            try? await Task.sleep(nanoseconds: 1_500_000_000)
+            await MainActor.run {
+                withAnimation(.easeOut(duration: 0.15)) { showingGeminiKeySaved = false }
+            }
+        }
     }
 
     // MARK: - 마크다운 출력 옵션

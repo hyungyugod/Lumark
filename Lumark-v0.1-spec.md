@@ -295,10 +295,12 @@ func generateMarkdown(note: Note) -> String {
         ColorCategory.activeInV01.contains($0.colorCategory)
     }
 
-    // 3. 주황 등장 인덱스로 섹션 분할
-    let sections = splitByOrangeMarkers(active)
+    // 3. 주황 등장 인덱스로 섹션 분할.
+    //    페이지 헤더 dedup: 이미 등장한 텍스트의 주황은 페이지 헤더 반복으로 보고
+    //    새 섹션을 만들지 않는다. 이후의 노랑 글머리표는 직전 섹션에 이어 붙음.
+    let sections = splitByOrangeMarkers(active, dedup: true)
     // sections[0] = 첫 주황 이전 노랑들 → "주제 미지정"
-    // sections[1..] = 각 주황을 제목으로 가짐
+    // sections[1..] = 각 주황을 제목으로 가짐 (중복 제외)
 
     // 4. 페이지 매핑 표 생성
     let pageMap = buildPageMap(note)
@@ -312,6 +314,13 @@ func generateMarkdown(note: Note) -> String {
     )
 }
 ```
+
+### 페이지 헤더 dedup
+
+슬라이드 노트처럼 매 페이지 상단에 강의명·단원명이 같은 주황으로 반복되는 패턴이 흔하다.
+같은 텍스트의 주황은 두 번째 등장부터 무시해 마크다운에 같은 `##` 헤더가 중복 출력되지 않도록 한다.
+
+의도적으로 같은 제목의 별개 섹션이 필요하다면 한쪽에 공백·기호 등으로 변형을 주면 분리된다.
 
 ---
 

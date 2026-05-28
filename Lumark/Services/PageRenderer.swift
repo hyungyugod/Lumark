@@ -81,12 +81,32 @@ nonisolated enum PageRenderer {
         throw PageRendererError.invalidImage
     }
 
-    /// 이미지 데이터(메모리) 입력 — 카메라 / PhotosPicker 경로.
+    /// 이미지 데이터(메모리) 입력 — 카메라 / PhotosPicker 단일.
     static func render(imageData: Data) throws -> [UIImage] {
         guard let img = UIImage(data: imageData) else {
             throw PageRendererError.invalidImage
         }
         return [img]
+    }
+
+    /// 이미지 데이터 배열 → 페이지별 UIImage. 다중 선택/스캔용.
+    /// 디코드 실패한 이미지는 빈 페이지로 간주하고 스킵 — 부분 성공 허용 (spec §8).
+    /// 모두 실패하면 invalidImage throw.
+    static func render(
+        imageDataArray dataArray: [Data],
+        didIndex: ((Int, Int) -> Void)? = nil
+    ) throws -> [UIImage] {
+        let total = dataArray.count
+        var out: [UIImage] = []
+        out.reserveCapacity(total)
+        for (idx, data) in dataArray.enumerated() {
+            if let img = UIImage(data: data) {
+                out.append(img)
+            }
+            didIndex?(idx + 1, total)
+        }
+        guard !out.isEmpty else { throw PageRendererError.invalidImage }
+        return out
     }
 
     // MARK: - PDF 렌더

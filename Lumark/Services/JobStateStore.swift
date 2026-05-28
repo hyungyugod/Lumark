@@ -18,7 +18,8 @@ struct JobState: Codable, Identifiable, Sendable {
     let filename: String
     let totalPages: Int
     let stagedURL: URL?    // PDF인 경우, 임시 디렉토리에 stage된 URL
-    let imageDataPath: String?  // 이미지인 경우 디스크 경로
+    /// 이미지인 경우 디스크 경로들 (N장). 다중 선택/스캔 지원을 위해 배열로 보관.
+    let imageDataPaths: [String]?
     let isPDF: Bool
     /// Share Extension에서 진입한 경우의 AppGroup inbox UUID. 콜드 부팅 후
     /// 재개·취소 시 inbox 파일 cleanup에 사용.
@@ -33,7 +34,7 @@ struct JobState: Codable, Identifiable, Sendable {
         filename: String,
         totalPages: Int,
         stagedURL: URL? = nil,
-        imageDataPath: String? = nil,
+        imageDataPaths: [String]? = nil,
         isPDF: Bool,
         inboxID: UUID? = nil,
         stageRaw: Int = 0,
@@ -45,13 +46,63 @@ struct JobState: Codable, Identifiable, Sendable {
         self.filename = filename
         self.totalPages = totalPages
         self.stagedURL = stagedURL
-        self.imageDataPath = imageDataPath
+        self.imageDataPaths = imageDataPaths
         self.isPDF = isPDF
         self.inboxID = inboxID
         self.stageRaw = stageRaw
         self.currentPage = currentPage
         self.startedAt = startedAt
         self.lastUpdatedAt = lastUpdatedAt
+    }
+
+    // MARK: - Codable 마이그레이션
+    //
+    // v0.1 초기에는 `imageDataPath: String?` (단수) 였음. 다중 선택 도입으로
+    // `imageDataPaths: [String]?` (복수)로 바뀜. 디스크에 남아있을 수 있는 구버전
+    // JSON을 깔끔히 읽어들이기 위해 두 키를 모두 받아준다.
+
+    private enum CodingKeys: String, CodingKey {
+        case id, filename, totalPages, stagedURL, imageDataPaths, isPDF, inboxID
+        case stageRaw, currentPage, startedAt, lastUpdatedAt
+        case imageDataPath  // legacy
+    }
+
+    nonisolated init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        self.id           = try c.decode(UUID.self, forKey: .id)
+        self.filename     = try c.decode(String.self, forKey: .filename)
+        self.totalPages   = try c.decode(Int.self, forKey: .totalPages)
+        self.stagedURL    = try c.decodeIfPresent(URL.self, forKey: .stagedURL)
+        self.isPDF        = try c.decode(Bool.self, forKey: .isPDF)
+        self.inboxID      = try c.decodeIfPresent(UUID.self, forKey: .inboxID)
+        self.stageRaw     = try c.decode(Int.self, forKey: .stageRaw)
+        self.currentPage  = try c.decode(Int.self, forKey: .currentPage)
+        self.startedAt    = try c.decode(Date.self, forKey: .startedAt)
+        self.lastUpdatedAt = try c.decode(Date.self, forKey: .lastUpdatedAt)
+
+        if let paths = try c.decodeIfPresent([String].self, forKey: .imageDataPaths) {
+            self.imageDataPaths = paths
+        } else if let single = try c.decodeIfPresent(String.self, forKey: .imageDataPath) {
+            self.imageDataPaths = [single]
+        } else {
+            self.imageDataPaths = nil
+        }
+    }
+
+    nonisolated func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(id, forKey: .id)
+        try c.encode(filename, forKey: .filename)
+        try c.encode(totalPages, forKey: .totalPages)
+        try c.encodeIfPresent(stagedURL, forKey: .stagedURL)
+        try c.encodeIfPresent(imageDataPaths, forKey: .imageDataPaths)
+        try c.encode(isPDF, forKey: .isPDF)
+        try c.encodeIfPresent(inboxID, forKey: .inboxID)
+        try c.encode(stageRaw, forKey: .stageRaw)
+        try c.encode(currentPage, forKey: .currentPage)
+        try c.encode(startedAt, forKey: .startedAt)
+        try c.encode(lastUpdatedAt, forKey: .lastUpdatedAt)
+        // legacy `imageDataPath`는 새로 쓰지 않음 — read-only.
     }
 }
 

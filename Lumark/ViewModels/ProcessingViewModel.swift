@@ -170,24 +170,38 @@ final class ProcessingViewModel {
                 throw LumarkError.noHighlightsDetected
             }
 
-            // 3. OCR — 페이지 단위 진행 표시
+            // 3. OCR — 페이지 단위 진행 표시. 사용자가 설정한 OCR 엔진(Vision / Gemini 등) 사용.
+            //    HSV 색 0개 페이지는 OCR 스킵 → 외부 API 호출/토큰 절약.
             setStage(.ocr)
             currentPage = 0
-            var perPageTexts: [[String]] = []
-            perPageTexts.reserveCapacity(pages.count)
+            let ocrProvider = OCRPreferences.shared.selectedProvider()
+            var perPageSpans: [[OCRSpan]] = []
+            perPageSpans.reserveCapacity(pages.count)
             for (idx, regions) in perPageRegions.enumerated() {
                 if Task.isCancelled { return }
                 currentPage = idx + 1
-                let texts = await OCRService.recognize(in: pages[idx], regions: regions)
-                perPageTexts.append(texts)
+                if regions.isEmpty {
+                    perPageSpans.append([])   // 형광펜 없는 페이지 — 호출 안 함
+                } else {
+                    do {
+                        let spans = try await ocrProvider.recognizePage(image: pages[idx], regions: regions)
+                        perPageSpans.append(spans)
+                    } catch let providerError as OCRProviderError {
+                        // Vision은 throw 안 함. Gemini 등 외부 엔진의 실패만 여기로 옴.
+                        throw LumarkError.wrapped(
+                            code: "OCR-PROVIDER",
+                            message: providerError.errorDescription ?? "OCR 실패"
+                        )
+                    }
+                }
                 persistProgress()
                 let frac = Double(idx + 1) / Double(pages.count)
                 overallProgress = baseProgress(.ocr) + frac * stagePortion(.ocr)
             }
 
-            // OCR이 모두 빈 문자열이면 spec §8 .ocrAllEmpty
-            let totalRecognized = perPageTexts.reduce(0) { acc, page in
-                acc + page.filter { !$0.isEmpty }.count
+            // 추출된 텍스트가 하나도 없으면 spec §8 .ocrAllEmpty
+            let totalRecognized = perPageSpans.reduce(0) { acc, spans in
+                acc + spans.filter { !$0.text.isEmpty }.count
             }
             guard totalRecognized > 0 else {
                 throw LumarkError.ocrAllEmpty
@@ -198,8 +212,7 @@ final class ProcessingViewModel {
             let note = assembleNote(
                 source: source,
                 pages: pages,
-                perPageRegions: perPageRegions,
-                perPageTexts: perPageTexts
+                perPageSpans: perPageSpans
             )
 
             if Task.isCancelled { return }
@@ -239,8 +252,14 @@ final class ProcessingViewModel {
             } catch PageRendererError.cannotOpenPDF, PageRendererError.emptyPDF {
                 throw LumarkError.pdfCorrupted
             }
-        case .image(let data):
-            return try PageRenderer.render(imageData: data)
+        case .images(let dataArray):
+            return try PageRenderer.render(imageDataArray: dataArray, didIndex: { [weak self] cur, total in
+                Task { @MainActor in
+                    self?.currentPage = cur
+                    let frac = Double(cur) / Double(max(1, total))
+                    self?.overallProgress = frac * (self?.stagePortion(.splittingPages) ?? 0.10)
+                }
+            })
         }
     }
 
@@ -249,8 +268,7 @@ final class ProcessingViewModel {
     private func assembleNote(
         source: JobSource,
         pages: [UIImage],
-        perPageRegions: [[DetectedRegion]],
-        perPageTexts: [[String]]
+        perPageSpans: [[OCRSpan]]
     ) -> Note {
         let (sourceKind, filename) = sourceMeta(source: source)
         let title = noteTitle(from: filename)
@@ -271,18 +289,17 @@ final class ProcessingViewModel {
             let page = Page(pageNumber: idx + 1, imageData: pageData)
             page.note = note
 
-            let regions = perPageRegions[idx]
-            let texts = perPageTexts[idx]
+            let spans = idx < perPageSpans.count ? perPageSpans[idx] : []
             var hs: [Highlight] = []
             var order = 0
-            for (rIdx, region) in regions.enumerated() {
-                let text = rIdx < texts.count ? texts[rIdx] : ""
-                let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-                guard !trimmed.isEmpty else { continue }   // OCR 빈 문자열 highlight는 스킵 (spec §8)
+            for span in spans {
+                let trimmed = span.text.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !trimmed.isEmpty else { continue }   // 빈 텍스트 스킵 (spec §8)
+                // bbox 없으면(Gemini 경로) zero rect — 디버그 오버레이엔 안 그려짐.
                 let h = Highlight(
-                    colorCategory: region.color,
+                    colorCategory: span.color,
                     text: trimmed,
-                    boundingBoxData: encode(rect: region.boundingBox),
+                    boundingBoxData: encode(rect: span.boundingBox ?? .zero),
                     orderInPage: order
                 )
                 h.page = page
@@ -300,7 +317,7 @@ final class ProcessingViewModel {
         switch source {
         case .pdf(let url):
             return (.pdf, url.lastPathComponent)
-        case .image:
+        case .images:
             return (.image, nil)
         }
     }

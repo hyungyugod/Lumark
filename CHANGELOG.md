@@ -82,6 +82,64 @@
 - **`Note.pages` / `Page.highlights` 배열 할당으로 통일** — ModelContext 밖에선 `append`가 불안정해 통합 테스트가 0개 섹션을 보던 문제. ProcessingViewModel.assembleNote도 동일 패턴으로 정리.
 - 총 단위 테스트 41 → 43개.
 
+### Changed (Gemini 프롬프트 줄 정리 — 2026-05-28)
+- **프롬프트에 줄 정리 지시 추가.** 여러 줄에 걸친 한 형광펜 강조를 하나의 항목으로 합치고, 줄바꿈으로 쪼개진 단어("바"+"탕"→"바탕")·문장을 완성된 문장으로 이어붙임. 2단 컬럼 읽기 순서(왼쪽 단 먼저)도 명시. 내용 지어내기/의미 변경은 여전히 금지. 같은 API 호출 안에서 처리 — 추가 비용 0.
+- **제목 처리 지시 추가.** 여러 어절·여러 줄 제목을 쪼개지 않고 한 항목으로, 페이지마다 반복되는 제목은 동일 텍스트로 반환 → 앱의 dedup이 작동해 "비신생물적 증식"이 한 번만 ## 으로.
+
+### Changed (전체 페이지 OCR + 토큰 비용 최적화 — 2026-05-28)
+- **OCR을 "페이지 통째 → Gemini" 방식으로 전환.** region마다 crop해서 N번 호출하던 방식 폐기 — underline에서 fragmentation + 인접 줄 누출 + 호출 수 폭증. 이제 페이지 1장 = API 1회, Gemini가 형광펜 영역을 직접 찾아 텍스트+색을 읽기 순서로 반환.
+- **`OCRProvider` 프로토콜을 `recognizePage(image:regions:) -> [OCRSpan]`로 변경.** `OCRSpan = {text, color, boundingBox?}`. Vision은 region 색+bbox 보존(디버그 오버레이 유지), Gemini는 색을 직접 분류하고 bbox는 nil.
+- **토큰 비용 최적화** (무료 배포 + 개발자 자비 부담 대응):
+  - 페이지당 1 call (region당 N call → 페이지당 1)
+  - **빈 페이지 스킵** — HSV 색 0개 페이지는 API 호출 안 함
+  - **다운샘플** — 220 DPI 원본을 긴 변 1536px로 축소해 입력 토큰 절감
+  - **기본 모델 Flash Lite** ($0.10/$0.40)
+  - `maxOutputTokens: 2048` + `temperature: 0`
+  - 추정: 20페이지 노트 ≈ 10원, 친구 5명 일상 사용 시 월 3~5천원
+- **20페이지 변환 상한.** PhotosPicker maxSelectionCount 20, PDF/Share inbox 20p 초과 차단, 카메라 스캔 20장 캡. 외부 OCR 토큰 비용 상한 보장.
+- 색 분류를 Gemini가 직접 → HSV 색역 튜닝 부담 감소 (HSV는 빈 페이지 게이트 + 디버그 오버레이용으로만).
+- GeminiOCRProviderTests를 spans 스키마 + 다운샘플 검증으로 재작성.
+
+### Fixed (underline 가로 병합 재설계 — 2026-05-28)
+- **가로 병합 "같은 줄" 판정을 이미지 높이 기반 안정 band로.** 기존엔 `yDiff ≤ minH × 0.6`이라 underline(높이 ~4px)은 임계값이 2.4px밖에 안 돼서, 줄 안 흔들림 때문에 같은 줄인데도 "다른 줄"로 판정 → 단어마다 쪼개짐. 이제 `lineBand = max(8, imageHeight × 1.1%)`로 줄 간격보단 작고 흔들림보단 큰 안정 값 사용.
+- **midY 정렬 후 greedy 줄 클러스터링** — 고정 bin 경계 straddle 문제 회피. 줄 안에서 x 정렬 후 gap(≤ 6% 폭) 병합.
+- 실 페이지에서 "분화된 조직의 한 형태에서 다른 것으로 변화된 것"이 7~8조각 → 1개 영역으로 병합. 테스트 2개 추가 (흔들리는 y / 줄 간격 분리).
+
+### Changed (Gemini 기본 모델 2.5로 — 2026-05-28)
+- **기본 모델 gemini-2.0-flash → gemini-2.5-flash.** 2.0-flash가 2025년 이후 신규 계정에 404("no longer available to new users"). 신규 계정에서 동작하는 2.5 계열을 기본값으로. 저장된 모델이 2.0-flash면 로드 시 2.5-flash로 자동 승격. picker에서 2.0/1.5는 "기존 계정 전용"으로 표기.
+
+### Added (Gemini quota 대응 — 2026-05-28)
+- **모델 선택 picker.** `GeminiModel` enum (2.0-flash / 2.5-flash-lite / 2.5-flash / 1.5-flash). 2025-12 Google 무료 티어 quota 축소로 2.0-flash가 429 나는 경우, Settings에서 더 관대한 모델로 전환 가능. OCRPreferences에 영속화.
+- **429/503 지수 백오프 재시도.** GeminiOCRProvider가 quota/overload 응답을 1s→2s→4s로 최대 3회 재시도. ghost 429 + 분당 rate limit 대응. 끝까지 실패하면 billing 안내 포함 에러 메시지.
+
+### Added (Gemini 2.0 Flash OCR provider — 2026-05-28)
+- **`OCRProvider` 추상화.** 기존 `OCRService`는 그대로 두고 `VisionOCRProvider`가 wrap. 새 provider는 protocol에 맞추기만 하면 끼움.
+- **`GeminiOCRProvider`** — Google AI Studio `gemini-2.0-flash:generateContent`. 페이지 단위 batch (한 페이지의 모든 region을 한 API call에). 각 region을 client 측에서 crop → JPEG → base64 → multi-image content. `responseMimeType: application/json` + `responseSchema` 강제로 안전 파싱. 12페이지 노트 변환 약 4원 (Haiku의 10분의 1).
+- **`OCRPreferences`** — engine 선택(UserDefaults) + API 키 보관(Keychain). `selectedProvider()` 팩토리로 ProcessingViewModel이 매번 새 인스턴스 받음.
+- **`SecureStore`** — Keychain 얇은 wrapper (`kSecClassGenericPassword`, `kSecAttrAccessibleAfterFirstUnlock`).
+- **SettingsView "OCR 엔진" 섹션** — Picker(Apple Vision / Gemini) + 엔진 설명 + Gemini 선택 시 SecureField로 API 키 입력 + AI Studio 발급 링크. 키 등록/삭제 UI.
+- **ProcessingViewModel** — OCR 단계에서 `OCRPreferences.shared.selectedProvider()` 호출. provider 에러는 `LumarkError.wrapped(code: "OCR-PROVIDER", ...)`로 surface.
+- **테스트 9개 추가** — `GeminiOCRProviderTests`: 요청 본문 형태 / crop 스킵 / 정상 응답 / 길이 mismatch / 잘못된 JSON / 누락 키. 실제 네트워크 호출은 없음.
+
+### Fixed (underline padding 누출 — 2026-05-28)
+- **adaptive vertical padding을 비대칭으로 변경.** underline 형 blob(얇은 가로 띠)에서 위/아래 모두 4배 padding을 적용하던 게 다음 줄 텍스트까지 OCR bbox에 빨려 들어가는 누출을 만듦 (예: "1 2) 병리적 과형성 Hyperplasi 피부의 만성적인 자극 (염 (1)"처럼 두 줄이 한 OCR 결과로 섞임). 위쪽 padding만 4배 유지(텍스트 본체는 underline 위에 있음), 아래쪽 padding은 일반 값 유지.
+- HighlightDetectorTests에 `underlinePaddingIsAsymmetric` 추가 — top extension ≥ 25 AND bottom ≤ 15 AND top > 2×bottom 잠금.
+
+### Changed (HSV 경계 이동 — 2026-05-27)
+- **orange / yellow hue 경계 40° → 50°.** Goodnotes "orange" 형광펜이 hue 40~50° 영역에 있어 우리 yellow 범위로 흘러 들어가던 문제. orange 범위 15~40° → 15~50°, yellow 범위 40~70° → 50~70°. 합성 테스트 색(hue 30° / 54°)은 경계 변경에 영향 없음. **기존 사용자는 Settings → "기본값으로 되돌리기" 한 번 필요** (UserDefaults 캐시된 OLD HSV 갱신).
+- **orange sMin 0.35 → 0.30.** opacity 낮춰 칠한 옅은 highlight 도 잡히게.
+
+### Added (실 페이지 정성 검증 패치 — 2026-05-27)
+- **OCR ko-KR only.** `OCRService.recognitionLanguages = ["ko-KR"]`. en-US를 함께 두면 Vision이 한국어 조사 "이"를 라틴 "O"로 추론하는 사례(예: "FHR이" → "FHRO")가 잡힘. ko-KR 모델은 한국어 문서에 흔히 섞인 영문 단어(hypertrophy 등)도 충분히 잘 읽음.
+- **줄 wrap 병합 (HighlightDetector).** 한 형광펜 stroke가 페이지 텍스트 줄을 넘어 2~3줄로 이어진 경우, 줄 사이 공백 때문에 별개 blob으로 분리되어 N개의 Highlight = N개의 bullet로 쪼개지던 문제. 같은 색 + 세로 인접(yGap ≤ min(h)*1.2) + 가로 연속(겹침 OR wrap 패턴: prev 우측존 + next 좌측존) 시 union으로 병합. `HighlightDetectorOptions.mergeWrappedLines` 로 토글 가능 (기본 ON).
+- **`minRegionRatio` 0.00015 → 0.00010.** 얇은 underline 형태 highlight도 잡히도록 방어적 튜닝.
+- **페이지 헤더 dedup (MarkdownDocument).** 슬라이드 노트처럼 매 페이지 상단에 같은 주황 제목이 반복되는 패턴에서, 같은 텍스트의 두 번째 이후 주황은 무시 → 한 노트에 같은 `##`가 N번 찍히지 않음. 직후 노랑은 직전 섹션에 이어 붙음.
+- **사진 다중 선택.** PhotosPicker `maxSelectionCount: 100`, `selectionBehavior: .ordered`. 선택 순서가 페이지 순서가 됨. 카메라 스캔도 모든 페이지를 다중 페이지 Note로 ingest (기존: 첫 장만).
+- **`JobSource.image(Data)` → `JobSource.images([Data])`.** 단일 이미지는 `[data]` 한 원소 배열. 모든 ingest 경로(PhotosPicker / FileImporter / Camera / Share Extension inbox)가 통일된 시그니처로 진입.
+- **`JobState.imageDataPath: String?` → `imageDataPaths: [String]?`.** Codable 마이그레이션 (legacy 단수 키 자동 fallback). 잡 영속화 디렉토리는 `jobs/<id>/p0000.img` 패턴.
+- **`HighlightDetectorOptions.mergeWrappedLines: Bool`** 옵션 신규.
+- 단위 테스트 43 → 50개 (HighlightDetector merge 4 + MarkdownDocument dedup 2 + PageRenderer 변경에 따른 OCR/Pipeline 영향 없음).
+
 ### Changed (v0.1 색 범위 축소 — 2026-05-26)
 - **v0.1 활성 색을 노랑/주황으로 한정.** 실제 간호학 PDF 페이지(여성건강간호학 §대아심박동) 검토 결과 분홍/파랑은 본문 섹션에서 분리하기보다 본문에 inline으로 자연스럽고, 분홍/파랑 highlight 자체가 페이지에 없는 경우가 더 흔함. 분홍/파랑 검출·렌더는 v0.2+ 백로그로 이동.
 - 단일 진리원으로 `ColorCategory.activeInV01: [.yellow, .orange]` 도입 — UI/defaults/exporters 모두 이걸 사용. v0.2에서 케이스 추가만으로 재활성.
