@@ -12,6 +12,7 @@ enum HomeRoute: Hashable {
     case processing(jobID: UUID)
     case result(noteID: UUID)
     case recentList
+    case myQuizzes
 }
 
 /// 변환 입력 소스.

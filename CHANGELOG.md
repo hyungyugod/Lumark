@@ -2,6 +2,11 @@
 
 ## [Unreleased] — v0.1 (MVP) 작업 중
 
+### Added (퀴즈 전면화 + 내 퀴즈 — 2026-05-28)
+- **홈 "설정" 카드 → "내 퀴즈" 카드.** 설정은 우상단 톱니로 유지. 만든 퀴즈를 한곳에서 학습하도록 입구를 메인에 노출.
+- **`MyQuizzesView` 신규.** 플래시카드가 1장 이상 있는 노트 목록(카드 수·날짜 표시) → 행 탭 시 학습(`FlashcardStudyView`), context menu로 "정리본 보기" / "퀴즈 삭제"(카드만 삭제, 정리본 Note는 유지). 카드 없으면 빈 상태 안내.
+- **결과 화면 하단 액션바에 퀴즈 버튼.** `복사 / 공유 / PDF / 퀴즈` — 카드 없으면 "퀴즈 만들기", 있으면 "퀴즈 보기"(brown primary). 기존엔 "..." 메뉴에 숨어 있던 걸 전면 배치(메뉴엔 "다시 만들기"만 남김).
+
 ### Added (Gemini 키 발급 안내 — 2026-05-28)
 - **Settings의 "내 Gemini 키" API 키 입력 옆에 "발급 방법" 버튼.** 누르면 단계별 안내 시트(`GeminiKeyGuideSheet`)가 뜸 — AI Studio 열기 → Google 로그인 → "Create API key" → 키 복사 → Lumark에 붙여넣고 저장. Google AI Studio 링크 버튼 + Keychain 보관 안내 포함. (엔진이 "내 Gemini 키"일 때만 노출.)
 

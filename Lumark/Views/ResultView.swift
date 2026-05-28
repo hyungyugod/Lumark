@@ -109,7 +109,12 @@ struct ResultView: View {
             ResultActionBar(
                 onCopy: copy,
                 onShare: share,
-                onExportPDF: exportPDF
+                onExportPDF: exportPDF,
+                quizSystemImage: note.flashcards.isEmpty ? "sparkles" : "rectangle.stack.fill",
+                quizLabel: note.flashcards.isEmpty ? "퀴즈 만들기" : "퀴즈 보기",
+                onQuiz: {
+                    if note.flashcards.isEmpty { generateQuiz() } else { showingStudy = true }
+                }
             )
             .padding(.horizontal, 16)
             .padding(.bottom, 16)
@@ -123,11 +128,8 @@ struct ResultView: View {
                     toggleFavorite()
                 }
             }
-            // 퀴즈
-            if note.flashcards.isEmpty {
-                Button("퀴즈 만들기") { generateQuiz() }
-            } else {
-                Button("퀴즈 보기 (\(note.flashcards.count)장)") { showingStudy = true }
+            // 퀴즈 — 만들기/보기는 하단 액션바. 메뉴엔 카드 있을 때 "다시 만들기"만.
+            if !note.flashcards.isEmpty {
                 Button("퀴즈 다시 만들기") { generateQuiz() }
             }
             Button("이름 변경") {

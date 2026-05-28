@@ -202,6 +202,11 @@ struct HomeView: View {
             RecentNotesView { note in
                 openExistingNote(note)
             }
+
+        case .myQuizzes:
+            MyQuizzesView { note in
+                openExistingNote(note)
+            }
         }
     }
 
@@ -296,11 +301,11 @@ struct HomeView: View {
             }
 
             ActionCard(
-                systemImage: "gearshape",
-                label: "설정",
-                desc: "색·라벨"
+                systemImage: "rectangle.stack",
+                label: "내 퀴즈",
+                desc: "만든 카드 학습"
             ) {
-                showingSettings = true
+                path.append(.myQuizzes)
             }
         }
     }
