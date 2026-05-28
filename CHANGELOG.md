@@ -2,6 +2,9 @@
 
 ## [Unreleased] — v0.1 (MVP) 작업 중
 
+### Added (Gemini 키 발급 안내 — 2026-05-28)
+- **Settings의 "내 Gemini 키" API 키 입력 옆에 "발급 방법" 버튼.** 누르면 단계별 안내 시트(`GeminiKeyGuideSheet`)가 뜸 — AI Studio 열기 → Google 로그인 → "Create API key" → 키 복사 → Lumark에 붙여넣고 저장. Google AI Studio 링크 버튼 + Keychain 보관 안내 포함. (엔진이 "내 Gemini 키"일 때만 노출.)
+
 ### Fixed (코드 리뷰 일괄 수정 — 2026-05-28)
 - **"원본 PDF" 폴백이 하드코딩 항생제 내용을 렌더하던 버그.** `PDFFauxView`가 `document`를 무시하고 고정 텍스트를 그려, 페이지 이미지 없는 노트에서 무관한 내용이 보임. 실제 `document.sections`를 렌더하도록 교체(빈 노트는 안내 문구).
 - **Share Extension이 openURL 전달 실패에도 성공으로 종료.** responder chain이 `openURL:`을 실제 처리했을 때만 `success`로 dismiss하도록 수정(실패 시 inbox 파일은 다음 실행 때 정리).

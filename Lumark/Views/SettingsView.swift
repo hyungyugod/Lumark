@@ -16,6 +16,7 @@ struct SettingsView: View {
     @State private var ocrPrefs = OCRPreferences.shared
     @State private var geminiKeyInput: String = ""
     @State private var showingGeminiKeySaved = false
+    @State private var showingKeyGuide = false
     @Environment(\.dismiss) private var dismiss
     @FocusState private var focusedColor: ColorCategory?
     @FocusState private var geminiKeyFocused: Bool
@@ -43,6 +44,9 @@ struct SettingsView: View {
                         .foregroundStyle(Palette.brown)
                         .fontWeight(.semibold)
                 }
+            }
+            .sheet(isPresented: $showingKeyGuide) {
+                GeminiKeyGuideSheet()
             }
         }
     }
@@ -190,6 +194,21 @@ struct SettingsView: View {
                         Text(ocrPrefs.hasGeminiKey ? "API 키 등록됨" : "API 키 미등록")
                             .font(.system(size: 13, weight: .semibold))
                             .foregroundStyle(Palette.ink)
+
+                        Spacer()
+
+                        Button {
+                            showingKeyGuide = true
+                        } label: {
+                            HStack(spacing: 3) {
+                                Image(systemName: "questionmark.circle")
+                                    .font(.system(size: 12))
+                                Text("발급 방법")
+                                    .font(.system(size: 12.5, weight: .semibold))
+                            }
+                            .foregroundStyle(Palette.brown)
+                        }
+                        .buttonStyle(.plain)
                     }
 
                     SecureField(
@@ -451,6 +470,106 @@ struct SettingsView: View {
             }
         }
         .padding(.bottom, 4)
+    }
+}
+
+// MARK: - Gemini 키 발급 방법 안내
+
+/// "발급 방법" 버튼으로 띄우는 단계별 안내 시트. AI Studio 링크 포함.
+private struct GeminiKeyGuideSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    private let apiKeyURL = URL(string: "https://aistudio.google.com/app/apikey")!
+
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                Palette.cream.ignoresSafeArea()
+
+                ScrollView {
+                    VStack(alignment: .leading, spacing: Space.s4) {
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("내 Gemini API 키 발급 방법")
+                                .font(.system(size: 19, weight: .bold))
+                                .foregroundStyle(Palette.ink)
+                            Text("Google AI Studio에서 무료로 만들 수 있어요. 1~2분이면 됩니다.")
+                                .font(.system(size: 13))
+                                .foregroundStyle(Palette.subtle)
+                                .lineSpacing(2)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+
+                        VStack(alignment: .leading, spacing: 14) {
+                            step(1, title: "Google AI Studio 열기",
+                                 desc: "맨 아래 \"Google AI Studio 열기\" 버튼을 누르면 키 발급 페이지가 열려요.")
+                            step(2, title: "Google 계정으로 로그인",
+                                 desc: "평소 쓰는 구글 계정으로 로그인하면 됩니다.")
+                            step(3, title: "\"Create API key\" 누르기",
+                                 desc: "페이지의 키 만들기 버튼을 누르세요. 새 프로젝트를 만들겠냐고 물으면 그대로 진행하면 돼요.")
+                            step(4, title: "키 복사하기",
+                                 desc: "AIza… 로 시작하는 긴 문자열이 만들어져요. 옆의 복사 버튼을 누르세요.")
+                            step(5, title: "Lumark에 붙여넣고 저장",
+                                 desc: "이 설정 화면으로 돌아와 입력칸에 붙여넣고 \"저장\"을 누르면 끝!")
+                        }
+
+                        Link(destination: apiKeyURL) {
+                            HStack(spacing: 6) {
+                                Image(systemName: "arrow.up.forward.square")
+                                Text("Google AI Studio 열기")
+                                    .fontWeight(.semibold)
+                            }
+                            .font(.system(size: 15))
+                            .foregroundStyle(Palette.cream)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 13)
+                            .background(Capsule().fill(Palette.brown))
+                        }
+
+                        HStack(alignment: .top, spacing: 6) {
+                            Image(systemName: "lock.shield")
+                                .font(.system(size: 12))
+                                .foregroundStyle(Palette.muted)
+                            Text("입력한 키는 이 기기의 보안 저장소(Keychain)에만 보관되고, Lumark 서버로 전송되지 않아요.")
+                                .font(.system(size: 11.5))
+                                .foregroundStyle(Palette.subtle)
+                                .lineSpacing(2)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                    .padding(20)
+                }
+                .scrollContentBackground(.hidden)
+            }
+            .navigationTitle("키 발급 방법")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("닫기") { dismiss() }
+                        .foregroundStyle(Palette.brown)
+                        .fontWeight(.semibold)
+                }
+            }
+        }
+    }
+
+    private func step(_ n: Int, title: String, desc: String) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            Text("\(n)")
+                .font(.system(size: 13, weight: .bold))
+                .foregroundStyle(Palette.cream)
+                .frame(width: 24, height: 24)
+                .background(Circle().fill(Palette.brass))
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.system(size: 14.5, weight: .semibold))
+                    .foregroundStyle(Palette.ink)
+                Text(desc)
+                    .font(.system(size: 12.5))
+                    .foregroundStyle(Palette.subtle)
+                    .lineSpacing(2)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
     }
 }
 
