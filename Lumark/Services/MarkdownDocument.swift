@@ -107,11 +107,18 @@ extension MarkdownDocument {
     }
 
     /// 주황 등장 인덱스로 섹션을 자른다.
+    ///
+    /// 페이지 헤더 dedup: 한 노트가 여러 페이지에 걸쳐 같은 제목(예: 강의명)을
+    /// 페이지마다 주황으로 반복해 칠한 경우, 같은 텍스트의 두 번째 이후 주황 표시는
+    /// 무시한다. 직후의 노랑 글머리표들은 직전에 열려있던 섹션에 이어 붙는다.
+    /// (의도적으로 같은 제목의 두 섹션을 만들고 싶다면 한쪽 제목에 공백 등으로
+    /// 변형을 줘야 함 — v0.1 트레이드오프.)
     private static func splitByOrange(_ highlights: [OrderedHighlight]) -> [MarkdownSection] {
         var result: [MarkdownSection] = []
         var currentTitle: String? = nil
         var currentItems: [MarkdownItem] = []
         var currentSectionPage: Int = 0
+        var seenOrangeTexts: Set<String> = []
 
         func flush() {
             if currentTitle != nil || !currentItems.isEmpty {
@@ -131,9 +138,15 @@ extension MarkdownDocument {
             let h = entry.highlight
             switch h.colorCategory {
             case .orange:
+                let key = h.text.trimmingCharacters(in: .whitespacesAndNewlines)
+                if seenOrangeTexts.contains(key) {
+                    // 페이지 헤더 반복으로 간주: 새 섹션 만들지 않고 현재 섹션 유지.
+                    continue
+                }
                 flush()
                 currentTitle = h.text
                 currentSectionPage = entry.pageNumber
+                seenOrangeTexts.insert(key)
             case .yellow:
                 if currentSectionPage == 0 { currentSectionPage = entry.pageNumber }
                 currentItems.append(MarkdownItem(

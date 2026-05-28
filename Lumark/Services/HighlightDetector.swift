@@ -34,8 +34,9 @@ struct HighlightDetectorOptions: Sendable {
     /// 작업용 해상도. 긴 변 기준. 너무 크면 느려지고, 너무 작으면 얇은 형광펜이 사라짐.
     var workingDimension: CGFloat = 1200
     /// 작업 해상도 픽셀 수 대비 최소 blob 면적 (노이즈 컷).
-    /// 1.5e-4 = 1200x1600 이미지에선 약 290px (대략 17x17 정도).
-    var minRegionRatio: Double = 0.00015
+    /// 1.0e-4 = 1200x1600 이미지에선 약 190px (대략 14x14 정도).
+    /// 얇은 underline 형태 highlight도 잡히도록 보수적으로 낮춘 값.
+    var minRegionRatio: Double = 0.00010
     /// bbox 패딩 — OCR에 더 넉넉히 자르기 위한 여유. 작업 해상도 짧은 변의 비율.
     var paddingRatio: Double = 0.012
     /// Morphological closing 반복 수. 형광펜 위에 인쇄된 텍스트 글리프는 HSV
@@ -43,17 +44,22 @@ struct HighlightDetectorOptions: Sendable {
     /// dilate K번 → erode K번으로 ~2K픽셀까지의 글자 stroke를 메운다.
     /// 0이면 closing 끄기.
     var closingRadius: Int = 2
+    /// 세로로 인접한 같은 색 blob 병합 ON/OFF. 한 형광펜 stroke가 여러 줄로
+    /// wrap된 경우 단일 영역으로 묶기 위함. 끄면 줄마다 별도 Highlight가 됨.
+    var mergeWrappedLines: Bool = true
 
     nonisolated init(
         workingDimension: CGFloat = 1200,
-        minRegionRatio: Double = 0.00015,
+        minRegionRatio: Double = 0.00010,
         paddingRatio: Double = 0.012,
-        closingRadius: Int = 2
+        closingRadius: Int = 2,
+        mergeWrappedLines: Bool = true
     ) {
         self.workingDimension = workingDimension
         self.minRegionRatio = minRegionRatio
         self.paddingRatio = paddingRatio
         self.closingRadius = closingRadius
+        self.mergeWrappedLines = mergeWrappedLines
     }
 }
 
@@ -87,16 +93,39 @@ nonisolated enum HighlightDetector {
 
         var regions: [DetectedRegion] = []
 
-        // 2. 활성 색마다 마스크 → closing → 연결요소 → bbox
+        // 2. 활성 색마다 마스크 → closing → 연결요소 → wrap 병합 → bbox
         for rule in activeRules {
             var mask = buildMask(pixels: pixels, w: w, h: h, range: rule.hsvRange)
             if options.closingRadius > 0 {
                 morphologicalClose(&mask, w: w, h: h, radius: options.closingRadius)
             }
-            let blobs = connectedComponents(mask: mask, w: w, h: h, minArea: minArea)
+            let rawBlobs = connectedComponents(mask: mask, w: w, h: h, minArea: minArea)
+            // 같은 줄에서 단어 간격 때문에 쪼개진 blob 먼저 합친 뒤,
+            // 줄을 가로지르는 wrap을 합친다. 순서 중요 — 가로 먼저 합쳐야
+            // wrap 판정에 쓰는 "한 줄짜리 blob의 우측 끝/좌측 끝"이 의미를 가짐.
+            let blobs: [Blob] = {
+                guard options.mergeWrappedLines else { return rawBlobs }
+                let hMerged = mergeHorizontallyAdjacent(rawBlobs, imageWidth: w, imageHeight: h)
+                return mergeVerticallyAdjacent(hMerged, imageWidth: w)
+            }()
 
             for blob in blobs {
-                let padded = blob.bbox.insetBy(dx: -CGFloat(padding), dy: -CGFloat(padding))
+                // underline 형태 (얇고 긴 가로 띠) → 위쪽 padding만 4배로 늘려
+                // 텍스트 본체(underline 위에 있음)까지 OCR bbox에 포함시킨다.
+                // 아래쪽은 일반 padding 유지 — 4배로 하면 다음 줄까지 빨려 들어가
+                // 다음 줄 텍스트가 함께 OCR되어 의미가 섞임 (asymmetric padding).
+                let bh = blob.maxY - blob.minY + 1
+                let bw = blob.maxX - blob.minX + 1
+                let isUnderlineShape = bh <= 12 && bw >= bh * 5
+                let topPad    = isUnderlineShape ? padding * 4 : padding
+                let bottomPad = padding
+
+                let padded = CGRect(
+                    x: CGFloat(blob.minX - padding),
+                    y: CGFloat(blob.minY - topPad),
+                    width: CGFloat(bw + padding * 2),
+                    height: CGFloat(bh + topPad + bottomPad)
+                )
                 let clamped = padded.intersection(CGRect(x: 0, y: 0, width: w, height: h))
                 guard !clamped.isNull, !clamped.isEmpty else { continue }
 
@@ -398,6 +427,126 @@ nonisolated enum HighlightDetector {
                 result.append(blob)
             }
         }
+        return result
+    }
+
+    // MARK: - 같은 줄 fragment 병합
+
+    /// 같은 줄에 있지만 단어 띄어쓰기 / 텍스트 descender 때문에 별개 blob으로
+    /// 잡힌 같은 색 영역들을 합친다. underline 형 형광펜에서 가장 빈번.
+    ///
+    /// 알고리즘:
+    ///   1. midY 오름차순 정렬 후 greedy 줄 클러스터링
+    ///      (다음 blob의 midY가 현재 줄의 최근 midY와 lineBand 이내면 같은 줄)
+    ///   2. 각 줄 안에서 x 정렬 → 가로 gap ≤ gapLimit이면 union
+    ///
+    /// lineBand는 underline 높이(작음)가 아니라 **이미지 높이 기반**으로 잡는다.
+    /// 얇은 underline은 줄 안에서 몇 px씩 흔들려서, 높이 비례 임계값으론 같은 줄을
+    /// 못 묶었음. 줄 간격(보통 이미지 높이의 ~2% 이상)보단 작아 인접 줄은 안 섞임.
+    private static func mergeHorizontallyAdjacent(_ blobs: [Blob], imageWidth: Int, imageHeight: Int) -> [Blob] {
+        guard blobs.count > 1 else { return blobs }
+
+        let gapLimit = Int(Double(imageWidth) * 0.06)
+        let lineBand = max(8, Int(Double(imageHeight) * 0.011))
+
+        func midY(_ b: Blob) -> Int { (b.minY + b.maxY) / 2 }
+
+        // 1) midY 정렬 후 greedy 줄 클러스터링
+        let byY = blobs.sorted { midY($0) < midY($1) }
+        var lines: [[Blob]] = []
+        var line: [Blob] = [byY[0]]
+        var lineMidY = midY(byY[0])
+        for b in byY.dropFirst() {
+            let m = midY(b)
+            if m - lineMidY <= lineBand {
+                line.append(b)
+                lineMidY = m          // 줄을 따라 완만한 drift 허용
+            } else {
+                lines.append(line)
+                line = [b]
+                lineMidY = m
+            }
+        }
+        lines.append(line)
+
+        // 2) 각 줄 안에서 x 정렬 후 gap 병합
+        var result: [Blob] = []
+        for lineBlobs in lines {
+            let sorted = lineBlobs.sorted { $0.minX < $1.minX }
+            var current = sorted[0]
+            for next in sorted.dropFirst() {
+                let xGap = next.minX - current.maxX   // 음수면 겹침
+                if xGap <= gapLimit {
+                    current = Blob(
+                        minX: min(current.minX, next.minX),
+                        minY: min(current.minY, next.minY),
+                        maxX: max(current.maxX, next.maxX),
+                        maxY: max(current.maxY, next.maxY),
+                        area: current.area + next.area
+                    )
+                } else {
+                    result.append(current)
+                    current = next
+                }
+            }
+            result.append(current)
+        }
+        return result
+    }
+
+    // MARK: - 줄 wrap 병합
+
+    /// 같은 색이지만 페이지 텍스트 줄 사이의 공백 때문에 별개의 blob으로 잡힌 영역들을
+    /// 하나로 묶는다. 한 형광펜 stroke가 2~3줄에 걸쳐 그어진 경우, OCR을 한 큰 영역에
+    /// 한 번만 돌리고 결과를 단일 Highlight(=마크다운 한 bullet)로 표현하기 위함.
+    ///
+    /// 병합 조건 (둘 다 만족):
+    ///   - 세로 간격 ≤ min(prev.height, next.height) × 1.2 (대략 한 줄 간격 이내)
+    ///   - 가로로 연속됨: (a) 가로 겹침이 있거나, (b) prev가 페이지 우측에서 끝나고
+    ///                  next가 좌측에서 시작 (자연스러운 줄 wrap)
+    ///
+    /// 같은 색 두 highlight가 줄 하나를 사이에 두고 떨어져 있으면 세로 간격이 커서
+    /// 병합되지 않는다 — 보수적 휴리스틱.
+    private static func mergeVerticallyAdjacent(_ blobs: [Blob], imageWidth: Int) -> [Blob] {
+        guard blobs.count > 1 else { return blobs }
+        let sorted = blobs.sorted {
+            ($0.minY, $0.minX) < ($1.minY, $1.minX)
+        }
+        let rightZone = Int(Double(imageWidth) * 0.60)  // prev.maxX > 0.60 * W = "우측에서 끝남"
+        let leftZone  = Int(Double(imageWidth) * 0.40)  // next.minX < 0.40 * W = "좌측에서 시작"
+
+        var result: [Blob] = []
+        var current = sorted[0]
+
+        for next in sorted.dropFirst() {
+            let curH = current.maxY - current.minY + 1
+            let nxtH = next.maxY    - next.minY    + 1
+            let minH = min(curH, nxtH)
+            let yGap = next.minY - current.maxY   // 음수면 세로로 겹침
+
+            // 1) 세로 인접성
+            let verticallyAdjacent = yGap <= (minH * 12) / 10
+
+            // 2) 가로 연속성
+            let horizontalOverlap = max(0, min(current.maxX, next.maxX) - max(current.minX, next.minX))
+            let isOverlapping = horizontalOverlap > 0
+            let isWrap = current.maxX >= rightZone && next.minX <= leftZone
+            let horizontallyContinuous = isOverlapping || isWrap
+
+            if verticallyAdjacent && horizontallyContinuous {
+                current = Blob(
+                    minX: min(current.minX, next.minX),
+                    minY: min(current.minY, next.minY),
+                    maxX: max(current.maxX, next.maxX),
+                    maxY: max(current.maxY, next.maxY),
+                    area: current.area + next.area
+                )
+            } else {
+                result.append(current)
+                current = next
+            }
+        }
+        result.append(current)
         return result
     }
 

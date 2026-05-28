@@ -35,10 +35,15 @@ struct ColorRule: Codable, Identifiable, Equatable {
     }
 
     /// 잠정값. Day 2~4 S1 검증에서 정밀도 ≥ 95% / 재현율 ≥ 90% 통과까지 튜닝.
+    ///
+    /// 경계 hue 50°에 대해: Goodnotes의 "orange" 형광펜이 노랑 쪽에 치우쳐 있어
+    /// hue 40~50° 영역이 의도와 달리 yellow로 분류되던 문제. 경계를 40° → 50°로
+    /// 이동시켜 노란빛 주황(yellow-orange)을 orange가 가져가게 함. orange의 sMin도
+    /// 0.35 → 0.30으로 낮춰 opacity 낮은(=옅은) highlight 도 잡히게 함.
     private static func defaultHSV(for c: ColorCategory) -> HSVRange {
         switch c {
-        case .yellow: return HSVRange(hMin: 40,  hMax: 70,  sMin: 0.30, vMin: 0.55)
-        case .orange: return HSVRange(hMin: 15,  hMax: 40,  sMin: 0.35, vMin: 0.55)
+        case .yellow: return HSVRange(hMin: 50,  hMax: 70,  sMin: 0.30, vMin: 0.55)
+        case .orange: return HSVRange(hMin: 15,  hMax: 50,  sMin: 0.30, vMin: 0.55)
         case .pink:   return HSVRange(hMin: 320, hMax: 360, sMin: 0.25, vMin: 0.55)
         case .blue:   return HSVRange(hMin: 190, hMax: 250, sMin: 0.25, vMin: 0.45)
         }

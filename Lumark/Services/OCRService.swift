@@ -67,7 +67,10 @@ nonisolated enum OCRService {
             }
             request.recognitionLevel = .accurate
             request.usesLanguageCorrection = true
-            request.recognitionLanguages = ["ko-KR", "en-US"]
+            // ko-KR만 사용. en-US를 함께 두면 Vision이 한국어 조사 "이"를 라틴 "O"로
+            // 잘못 추론하는 사례(예: "FHR이" → "FHRO")가 발생. ko-KR 모델은 한국어
+            // 문서에 흔히 섞인 라틴 단어(hypertrophy 등)도 충분히 잘 읽는다.
+            request.recognitionLanguages = ["ko-KR"]
 
             let handler = VNImageRequestHandler(cgImage: cgImage, options: [:])
             do {

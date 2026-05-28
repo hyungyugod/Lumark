@@ -234,6 +234,40 @@ struct MarkdownDocumentTests {
         #expect(doc.sections[0].items.map(\.text) == ["첫째", "둘째"])
     }
 
+    // MARK: - 페이지 헤더 dedup
+
+    @Test("같은 텍스트의 주황이 여러 페이지에 반복되면 첫 번째만 섹션 생성")
+    func repeatedOrangeIsPageHeader() {
+        // 슬라이드 노트처럼 매 페이지 상단에 같은 주황 제목이 반복되는 경우.
+        let n = note(title: "T", pages: [
+            ["o:비신생물적 증식", "y:1단원 글머리1", "y:1단원 글머리2"],
+            ["o:비신생물적 증식", "o:2) 병리적 과형성", "y:2단원 글머리1"],
+            ["o:비신생물적 증식", "o:3) 화생", "y:3단원 글머리1", "y:3단원 글머리2"],
+        ])
+        let doc = MarkdownDocument.from(n)
+
+        // 같은 제목 "비신생물적 증식"은 한 번만 등장. 나머지는 새 섹션.
+        #expect(doc.sections.count == 3)
+        #expect(doc.sections[0].title == "비신생물적 증식")
+        #expect(doc.sections[0].items.map(\.text) == ["1단원 글머리1", "1단원 글머리2"])
+        #expect(doc.sections[1].title == "2) 병리적 과형성")
+        #expect(doc.sections[1].items.map(\.text) == ["2단원 글머리1"])
+        #expect(doc.sections[2].title == "3) 화생")
+        #expect(doc.sections[2].items.map(\.text) == ["3단원 글머리1", "3단원 글머리2"])
+    }
+
+    @Test("dedup된 주황 다음 노랑은 직전에 열린 섹션에 이어 붙음")
+    func yellowAfterSkippedOrangeContinuesPrevious() {
+        let n = note(title: "T", pages: [
+            ["o:Topic", "y:A"],
+            ["o:Topic", "y:B"],   // 두 번째 Topic 주황은 skip → B는 첫 Topic 섹션으로
+        ])
+        let doc = MarkdownDocument.from(n)
+        #expect(doc.sections.count == 1)
+        #expect(doc.sections[0].title == "Topic")
+        #expect(doc.sections[0].items.map(\.text) == ["A", "B"])
+    }
+
     // MARK: - spec §6 예시 골든 케이스
 
     @Test("spec §6 항생제정리 시나리오 — 골든 (v0.1: 노랑/주황만)")
