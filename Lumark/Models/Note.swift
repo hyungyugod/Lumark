@@ -30,6 +30,10 @@ final class Note {
     @Relationship(deleteRule: .cascade, inverse: \Page.note)
     var pages: [Page] = []
 
+    /// 이 노트에서 생성한 플래시카드들. 노트 삭제 시 함께 삭제.
+    @Relationship(deleteRule: .cascade, inverse: \Flashcard.note)
+    var flashcards: [Flashcard] = []
+
     init(
         id: UUID = UUID(),
         title: String,

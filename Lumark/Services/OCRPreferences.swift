@@ -17,6 +17,8 @@ final class OCRPreferences {
     /// 배포 후 `server/ocr-proxy/README.md` 5번 단계대로 여기에 URL을 채운다.
     /// 미설정(placeholder) 상태면 lumarkCloud 선택 시 안내 에러.
     static let lumarkCloudEndpoint = "https://lumark-ocr-proxy.hyungyugod.workers.dev/ocr"
+    /// 같은 Worker의 퀴즈 생성 라우트.
+    static let lumarkCloudQuizEndpoint = "https://lumark-ocr-proxy.hyungyugod.workers.dev/quiz"
     static var isCloudConfigured: Bool { !lumarkCloudEndpoint.contains("CHANGE-ME") }
 
     private static let engineKey       = "lumark.ocr.engine"

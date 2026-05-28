@@ -17,6 +17,7 @@ struct LumarkApp: App {
             Note.self,
             Page.self,
             Highlight.self,
+            Flashcard.self,
         ])
         let modelConfiguration = ModelConfiguration(
             schema: schema,

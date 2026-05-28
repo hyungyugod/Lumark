@@ -105,6 +105,14 @@
 - **midY 정렬 후 greedy 줄 클러스터링** — 고정 bin 경계 straddle 문제 회피. 줄 안에서 x 정렬 후 gap(≤ 6% 폭) 병합.
 - 실 페이지에서 "분화된 조직의 한 형태에서 다른 것으로 변화된 것"이 7~8조각 → 1개 영역으로 병합. 테스트 2개 추가 (흔들리는 y / 줄 간격 분리).
 
+### Added (퀴즈/플래시카드 엔진 — 2026-05-28)
+- **`Flashcard` SwiftData 모델** — question/answer/createdAt + Note 관계(cascade). 노트에서 생성한 카드를 누적 저장. 스키마 등록(LumarkApp, MockData).
+- **`QuizGenerator`** — 정리 노트 텍스트 → Q&A 카드. OCR 엔진 정책 재사용: Lumark Cloud(프록시) / 내 Gemini 키 / Apple Vision은 미지원(LLM 아님). `QuizCard` 값 타입 + 공용 프롬프트/스키마/파서(`QuizPrompt`).
+- **`ProxyQuizProvider` / `GeminiQuizProvider`** — 프록시 `/quiz` 호출 또는 본인 키 직접.
+- **Worker `/quiz` 라우트** — `{text,count}` → Gemini 텍스트 호출 → `{cards}`. `/ocr`와 공통 로직(한도 체크·AI Gateway·Gemini 호출) 추출해 리팩터. 한도 카운터 공유. E2E 검증 완료(샘플 노트 → 양질의 Q&A 생성).
+- QuizGeneratorTests 9개.
+- **퀴즈 UI** — ResultView "..." 메뉴에 "퀴즈 만들기 / 보기(N장) / 다시 만들기". 생성 중 오버레이, 에러는 errorAlert. 카드는 노트에 관계로 누적 저장(다시 만들기는 교체). `FlashcardStudyView` — 탭하면 질문↔정답 3D 뒤집기, 좌우 스와이프로 넘기기, 셔플, n/total 진행 표시. (간격반복 SRS는 v0.2 백로그.)
+
 ### Added (Lumark Cloud 프록시 — 2026-05-28)
 - **`server/ocr-proxy` Cloudflare Worker.** Gemini 키를 서버 secret에 보관, 앱은 키를 모름(추출 불가). 다운샘플 이미지를 받아 Gemini 호출 후 spans 반환. **기기당 + 전체 일일 페이지 한도**(KV 카운터)로 청구서 상한. 배포 가이드 `server/ocr-proxy/README.md`.
 - **AI Gateway 경유 (지역 차단 회피).** Cloudflare Worker 직접 egress가 Gemini 미지원 리전으로 잡혀 "User location is not supported" 발생 → AI Gateway(`gateway.ai.cloudflare.com/.../google-ai-studio/`) 경유 + `x-goog-api-key` 헤더로 우회. CF_ACCOUNT_ID/CF_GATEWAY env로 토글, 미설정 시 직접 호출 폴백. 실 이미지 E2E 검증 완료(한국어 OCR 정상).

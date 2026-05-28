@@ -142,7 +142,7 @@ enum MockData {
 
     @MainActor
     static func previewContainer(withMockNotes: Bool = true) -> ModelContainer {
-        let schema = Schema([Note.self, Page.self, Highlight.self])
+        let schema = Schema([Note.self, Page.self, Highlight.self, Flashcard.self])
         let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
         let container = try! ModelContainer(for: schema, configurations: [config])
 

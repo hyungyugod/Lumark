@@ -53,6 +53,10 @@ struct ResultView: View {
     @State private var isPreparingExport = false
     @State private var activeError: LumarkError?
 
+    // 퀴즈
+    @State private var isGeneratingQuiz = false
+    @State private var showingStudy = false
+
     /// 이 Note가 SwiftData 컨테이너에 이미 영속화돼있는가.
     /// 영속화 안 됐으면 저장 버튼 노출.
     private var isPersisted: Bool {
@@ -119,6 +123,13 @@ struct ResultView: View {
                     toggleFavorite()
                 }
             }
+            // 퀴즈
+            if note.flashcards.isEmpty {
+                Button("퀴즈 만들기") { generateQuiz() }
+            } else {
+                Button("퀴즈 보기 (\(note.flashcards.count)장)") { showingStudy = true }
+                Button("퀴즈 다시 만들기") { generateQuiz() }
+            }
             Button("이름 변경") {
                 editingTitle = note.title
                 showingRenameSheet = true
@@ -163,6 +174,22 @@ struct ResultView: View {
                         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
                 }
             }
+        }
+        .overlay {
+            if isGeneratingQuiz {
+                ZStack {
+                    Color.black.opacity(0.18).ignoresSafeArea()
+                    ProgressView("퀴즈 만드는 중…")
+                        .padding(20)
+                        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
+                }
+            }
+        }
+        .fullScreenCover(isPresented: $showingStudy) {
+            FlashcardStudyView(
+                cards: note.flashcards.sorted { $0.createdAt < $1.createdAt },
+                onClose: { showingStudy = false }
+            )
         }
         .sheet(isPresented: Binding(
             get: { shareItems != nil },
@@ -307,6 +334,52 @@ struct ResultView: View {
 
     private var currentDoc: MarkdownDocument {
         MarkdownDocument.from(note)
+    }
+
+    /// 정리된 노트 텍스트로 Q&A 카드 생성 → 저장 → 학습 화면.
+    private func generateQuiz() {
+        guard !isGeneratingQuiz else { return }
+        // 카드는 노트에 관계로 저장되므로 먼저 영속화.
+        if !isPersisted { save() }
+        isGeneratingQuiz = true
+
+        let prefs = ExportPreferences.shared
+        let text = MarkdownExporter.export(currentDoc, dialect: prefs.dialect, includePageMap: false)
+        let provider = QuizGenerator.selectedProvider()
+        let targetNote = note
+
+        Task {
+            do {
+                let cards = try await provider.generate(from: text, count: 12)
+                await MainActor.run {
+                    isGeneratingQuiz = false
+                    guard !cards.isEmpty else {
+                        activeError = .wrapped(code: "QUIZ-EMPTY", message: "카드를 만들 내용이 부족해요.")
+                        return
+                    }
+                    // 다시 만들기: 기존 카드 제거 후 교체
+                    for old in targetNote.flashcards { modelContext.delete(old) }
+                    for c in cards {
+                        let card = Flashcard(question: c.question, answer: c.answer)
+                        card.note = targetNote
+                        modelContext.insert(card)
+                    }
+                    try? modelContext.save()
+                    showToast("퀴즈 \(cards.count)장 만들었어요")
+                    showingStudy = true
+                }
+            } catch let e as QuizError {
+                await MainActor.run {
+                    isGeneratingQuiz = false
+                    activeError = .wrapped(code: "QUIZ", message: e.errorDescription ?? "퀴즈 생성 실패")
+                }
+            } catch {
+                await MainActor.run {
+                    isGeneratingQuiz = false
+                    activeError = .wrapped(code: "QUIZ", message: error.localizedDescription)
+                }
+            }
+        }
     }
 
     private func copy() {
