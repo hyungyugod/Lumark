@@ -80,14 +80,18 @@ class ShareViewController: UIViewController {
     private func openMainApp(url: URL) {
         var responder: UIResponder? = self
         let selector = sel_registerName("openURL:")
+        var opened = false
         while let r = responder {
             if r.responds(to: selector) {
                 _ = r.perform(selector, with: url)
+                opened = true
                 break
             }
             responder = r.next
         }
-        completeAndDismiss(success: true)
+        // responder chain에서 openURL:을 처리한 경우에만 성공 처리.
+        // 못 찾으면 메인 앱이 안 떴으므로 실패로 dismiss(inbox 파일은 다음 실행 때 정리).
+        completeAndDismiss(success: opened)
     }
 
     private func completeAndDismiss(success: Bool) {

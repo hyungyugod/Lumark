@@ -57,7 +57,8 @@ enum QuizGenerator {
         case .lumarkCloud:
             return ProxyQuizProvider(
                 endpoint: OCRPreferences.lumarkCloudQuizEndpoint,
-                deviceID: prefs.deviceID
+                deviceID: prefs.deviceID,
+                appToken: OCRPreferences.appToken
             )
         case .geminiFlash:
             if let key = SecureStore.load("lumark.ocr.geminiAPIKey") {

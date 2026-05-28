@@ -339,8 +339,10 @@ struct ResultView: View {
     /// 정리된 노트 텍스트로 Q&A 카드 생성 → 저장 → 학습 화면.
     private func generateQuiz() {
         guard !isGeneratingQuiz else { return }
-        // 카드는 노트에 관계로 저장되므로 먼저 영속화.
-        if !isPersisted { save() }
+        // 카드는 노트에 관계로 저장되므로 먼저 영속화. 저장 실패하면 중단.
+        if !isPersisted {
+            guard save() else { return }
+        }
         isGeneratingQuiz = true
 
         let prefs = ExportPreferences.shared
@@ -440,8 +442,9 @@ struct ResultView: View {
 
     // MARK: - CRUD
 
-    private func save() {
-        guard !isPersisted else { return }
+    @discardableResult
+    private func save() -> Bool {
+        guard !isPersisted else { return true }
         // Note + Page + Highlight 그래프 전체 insert.
         // SwiftData는 root 한 번만 insert하면 relationship 따라 다 들어감.
         modelContext.insert(note)
@@ -449,8 +452,10 @@ struct ResultView: View {
             try modelContext.save()
             showToast("저장됨")
             UINotificationFeedbackGenerator().notificationOccurred(.success)
+            return true
         } catch {
             activeError = .wrapped(code: "SAVE", message: "저장 실패: \(error.localizedDescription)")
+            return false
         }
     }
 

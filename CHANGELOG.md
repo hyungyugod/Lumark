@@ -2,6 +2,14 @@
 
 ## [Unreleased] — v0.1 (MVP) 작업 중
 
+### Fixed (코드 리뷰 일괄 수정 — 2026-05-28)
+- **"원본 PDF" 폴백이 하드코딩 항생제 내용을 렌더하던 버그.** `PDFFauxView`가 `document`를 무시하고 고정 텍스트를 그려, 페이지 이미지 없는 노트에서 무관한 내용이 보임. 실제 `document.sections`를 렌더하도록 교체(빈 노트는 안내 문구).
+- **Share Extension이 openURL 전달 실패에도 성공으로 종료.** responder chain이 `openURL:`을 실제 처리했을 때만 `success`로 dismiss하도록 수정(실패 시 inbox 파일은 다음 실행 때 정리).
+- **"처음 안내 다시 보기"가 자주 안 뜨던 문제.** Settings dismiss와 동시에 onboarding을 띄워 같은 뷰의 두 sheet가 충돌 → Settings sheet `onDismiss`에서 순차 제시.
+- **GeminiOCRProvider가 API 키를 URL 쿼리에 보간.** 키에 공백·특수문자가 섞이면 `URL(string:)`이 깨짐 → `x-goog-api-key` 헤더로 전달(퀴즈 provider와 통일).
+- **`generateQuiz`가 노트 저장 실패 후에도 진행.** `save()`가 성공 여부(Bool)를 반환 → 실패 시 중단.
+- **Worker 선택적 `X-App-Token` 게이트.** 공개 workers.dev URL 무차별 호출로 일일 한도를 태우는 걸 막는 1차 방어. `APP_TOKEN` secret 설정 시에만 강제(미설정 시 하위호환). 앱은 `OCRPreferences.appToken`을 항상 헤더로 전송.
+
 ### Added
 - 폴더 구조 (spec §10) — App / Models / Repositories / Services / ViewModels / Views / Theme / ShareExtension
 - **디자인 시스템** — `Theme.swift`. OKLCh → sRGB 런타임 변환. Light/Dark 자동 전환. 4색 형광펜 (yellow/orange/pink/blue) 토큰.

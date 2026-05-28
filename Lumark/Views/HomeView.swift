@@ -89,15 +89,15 @@ struct HomeView: View {
             .navigationDestination(for: HomeRoute.self) { route in
                 destination(for: route)
             }
-            .sheet(isPresented: $showingSettings) {
-                SettingsView()
-            }
             // SettingsView에서 "처음 안내 다시 보기"를 누르면 UserDefaults 플래그가
-            // false로 리셋된 채로 dismiss된다. dismiss를 감지해 onboarding 다시 띄움.
-            .onChange(of: showingSettings) { _, isPresented in
-                if !isPresented && !UserDefaults.standard.hasOnboarded {
+            // false로 리셋된 채로 dismiss된다. dismiss가 끝난 뒤(onDismiss) onboarding을
+            // 띄운다. dismiss와 동시에 present하면 같은 뷰의 두 sheet가 충돌해 누락된다.
+            .sheet(isPresented: $showingSettings, onDismiss: {
+                if !UserDefaults.standard.hasOnboarded {
                     showingOnboarding = true
                 }
+            }) {
+                SettingsView()
             }
             .sheet(isPresented: $showingOnboarding) {
                 OnboardingSheet { showingOnboarding = false }

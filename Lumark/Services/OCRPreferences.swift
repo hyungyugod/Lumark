@@ -21,6 +21,11 @@ final class OCRPreferences {
     static let lumarkCloudQuizEndpoint = "https://lumark-ocr-proxy.hyungyugod.workers.dev/quiz"
     static var isCloudConfigured: Bool { !lumarkCloudEndpoint.contains("CHANGE-ME") }
 
+    /// Lumark Cloud 호출용 공유 앱 토큰. Worker의 `APP_TOKEN` secret과 같은 값이어야 한다.
+    /// 클라이언트에 박히므로 진짜 비밀은 아니고, 공개 엔드포인트의 무차별 남용을 막는 1차 게이트.
+    /// Worker에 APP_TOKEN secret이 없으면 검증을 건너뛰므로(하위호환) 이 값이 비어도 동작한다.
+    static let appToken = "lmk_f575b4d674104b8ec4f1fb613604dd6dba318ce8"
+
     private static let engineKey       = "lumark.ocr.engine"
     private static let geminiKeyName   = "lumark.ocr.geminiAPIKey"
     private static let geminiModelKey  = "lumark.ocr.geminiModel"
@@ -86,7 +91,7 @@ final class OCRPreferences {
     func selectedProvider() -> OCRProvider {
         switch engine {
         case .lumarkCloud:
-            return ProxyOCRProvider(endpoint: Self.lumarkCloudEndpoint, deviceID: deviceID)
+            return ProxyOCRProvider(endpoint: Self.lumarkCloudEndpoint, deviceID: deviceID, appToken: Self.appToken)
         case .geminiFlash:
             guard let key = SecureStore.load(Self.geminiKeyName) else {
                 return MissingKeyProvider(engine: .geminiFlash)

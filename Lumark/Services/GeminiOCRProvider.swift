@@ -55,13 +55,16 @@ struct GeminiOCRProvider: OCRProvider {
             throw OCRProviderError.invalidResponse(detail: "요청 인코딩 실패: \(error.localizedDescription)")
         }
 
-        let endpoint = "https://generativelanguage.googleapis.com/v1beta/models/\(model):generateContent?key=\(apiKey)"
+        // 키는 URL 쿼리가 아니라 헤더로 전달 (퀴즈 provider와 동일).
+        // 쿼리에 넣으면 키에 +/공백/개행 등이 섞였을 때 URL(string:)이 깨진다.
+        let endpoint = "https://generativelanguage.googleapis.com/v1beta/models/\(model):generateContent"
         guard let url = URL(string: endpoint) else {
             throw OCRProviderError.invalidResponse(detail: "엔드포인트 URL 생성 실패")
         }
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue(apiKey, forHTTPHeaderField: "x-goog-api-key")
         request.httpBody = bodyData
         request.timeoutInterval = 60
 

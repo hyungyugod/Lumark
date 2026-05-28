@@ -12,10 +12,12 @@ import Foundation
 struct ProxyQuizProvider: QuizProvider {
     let endpoint: String
     let deviceID: String
+    let appToken: String?
 
-    nonisolated init(endpoint: String, deviceID: String) {
+    nonisolated init(endpoint: String, deviceID: String, appToken: String? = nil) {
         self.endpoint = endpoint
         self.deviceID = deviceID
+        self.appToken = appToken
     }
 
     func generate(from text: String, count: Int) async throws -> [QuizCard] {
@@ -32,6 +34,9 @@ struct ProxyQuizProvider: QuizProvider {
         req.httpMethod = "POST"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         req.setValue(deviceID, forHTTPHeaderField: "X-Device-ID")
+        if let appToken, !appToken.isEmpty {
+            req.setValue(appToken, forHTTPHeaderField: "X-App-Token")
+        }
         req.httpBody = bodyData
         req.timeoutInterval = 60
 

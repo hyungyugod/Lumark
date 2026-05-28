@@ -14,6 +14,7 @@
  *
  * 바인딩: KV(RATE), secret(GEMINI_KEY), vars(MODEL/PER_DEVICE_DAILY/GLOBAL_DAILY/
  *         CF_ACCOUNT_ID/CF_GATEWAY)
+ *         선택: secret(APP_TOKEN) — 설정 시 X-App-Token 헤더 일치 강제(앱 전용 게이트).
  */
 
 // ── OCR (이미지 → 형광펜 텍스트 + 색)
@@ -232,6 +233,12 @@ export default {
     const route = url.pathname;
     if (route !== "/ocr" && route !== "/quiz") {
       return json(404, { error: "not found" });
+    }
+
+    // 선택적 앱 토큰 게이트. APP_TOKEN secret이 설정돼 있을 때만 강제(없으면 하위호환).
+    // 공개 workers.dev URL이 알려져도 무차별 호출로 일일 한도를 태우는 걸 막는 1차 방어.
+    if (env.APP_TOKEN && request.headers.get("X-App-Token") !== env.APP_TOKEN) {
+      return json(401, { error: "unauthorized" });
     }
 
     const deviceId = request.headers.get("X-Device-ID");

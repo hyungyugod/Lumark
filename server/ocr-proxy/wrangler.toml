@@ -20,3 +20,7 @@ id = "6be1029749204cb69c2f34631b47cf6c"
 
 # GEMINI_KEY 는 vars 가 아니라 secret 으로 등록:
 #   npx wrangler secret put GEMINI_KEY
+#
+# (선택) APP_TOKEN: 앱 전용 게이트. 설정하면 X-App-Token 헤더가 이 값과 같아야 통과.
+# 앱의 OCRPreferences.appToken 과 똑같은 값으로 맞춰야 함. 미설정 시 검증 생략(하위호환).
+#   npx wrangler secret put APP_TOKEN

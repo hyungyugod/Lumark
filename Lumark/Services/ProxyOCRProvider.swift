@@ -18,17 +18,20 @@ import UIKit
 struct ProxyOCRProvider: OCRProvider {
     let endpoint: String
     let deviceID: String
+    let appToken: String?
     let longSideTarget: CGFloat
     let jpegQuality: CGFloat
 
     nonisolated init(
         endpoint: String,
         deviceID: String,
+        appToken: String? = nil,
         longSideTarget: CGFloat = 1536,
         jpegQuality: CGFloat = 0.82
     ) {
         self.endpoint = endpoint
         self.deviceID = deviceID
+        self.appToken = appToken
         self.longSideTarget = longSideTarget
         self.jpegQuality = jpegQuality
     }
@@ -54,6 +57,9 @@ struct ProxyOCRProvider: OCRProvider {
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue(deviceID, forHTTPHeaderField: "X-Device-ID")
+        if let appToken, !appToken.isEmpty {
+            request.setValue(appToken, forHTTPHeaderField: "X-App-Token")
+        }
         request.httpBody = bodyData
         request.timeoutInterval = 60
 
