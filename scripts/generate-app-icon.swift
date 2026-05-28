@@ -80,12 +80,27 @@ enum IconVariant {
 struct LumarkIconB: View {
     var size: CGFloat
     var variant: IconVariant = .light
+    /// 펜+스트로크 아트워크를 키워 아이콘을 더 꽉 채우는 배율.
+    var contentScale: CGFloat = 1.0
+    /// 배율 후 중심 보정 (1024 기준 px 단위).
+    var contentShift: CGSize = .zero
     private var s: CGFloat { size / 1024 }
 
     var body: some View {
         ZStack {
             background
             sheen
+            artwork
+                .scaleEffect(contentScale, anchor: .center)
+                .offset(x: contentShift.width * s, y: contentShift.height * s)
+        }
+        .frame(width: size, height: size)
+        .clipped()
+    }
+
+    /// 펜 + 4색 스트로크 묶음. 배율/위치는 호출부에서 조정.
+    private var artwork: some View {
+        ZStack {
             strokes
                 .offset(x: 228 * s - 512 * s, y: 540 * s - 512 * s)
                 .rotationEffect(.degrees(-22), anchor: .topLeading)
@@ -94,7 +109,6 @@ struct LumarkIconB: View {
                 .rotationEffect(.degrees(-22), anchor: .topLeading)
         }
         .frame(width: size, height: size)
-        .clipped()
     }
 
     @ViewBuilder
@@ -273,8 +287,17 @@ let variants: [Variant] = [
     .init(kind: .tinted, filename: "AppIcon-1024-tinted.png"),
 ]
 
+// 아트워크를 키워 아이콘을 꽉 채움. 렌더 결과 보고 조정.
+let fillScale: CGFloat = 1.35
+let fillShift = CGSize(width: 28, height: 18)
+
 for v in variants {
-    guard let png = renderPNG(LumarkIconB(size: 1024, variant: v.kind)) else {
+    guard let png = renderPNG(LumarkIconB(
+        size: 1024,
+        variant: v.kind,
+        contentScale: fillScale,
+        contentShift: fillShift
+    )) else {
         print("error: render failed for \(v.kind)")
         exit(1)
     }
