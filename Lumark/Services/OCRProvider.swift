@@ -11,40 +11,38 @@ import UIKit
 
 /// 사용 가능한 OCR 엔진. UserDefaults 영속화를 위해 raw String.
 enum OCREngine: String, Codable, CaseIterable, Sendable, Identifiable {
-    case appleVision
-    case geminiFlash
+    case lumarkCloud   // 기본 — 키 입력 없이 Lumark 프록시 경유
+    case geminiFlash   // 고급 — 본인 Gemini 키 직접
+    case appleVision   // 오프라인 폴백
 
     nonisolated var id: String { rawValue }
 
     nonisolated var displayName: String {
         switch self {
+        case .lumarkCloud: return "Lumark Cloud (기본)"
+        case .geminiFlash: return "내 Gemini 키 (고급)"
         case .appleVision: return "Apple Vision (오프라인)"
-        case .geminiFlash: return "Gemini 2.0 Flash (Google AI)"
         }
     }
 
     /// 요금/사용 안내 한 줄. Settings UI에서 보조 텍스트로 사용.
     nonisolated var blurb: String {
         switch self {
+        case .lumarkCloud:
+            return "키 입력 없이 바로 사용. 한국어 OCR 정확도 높음. 하루 사용량 한도 있음."
+        case .geminiFlash:
+            return "본인 Google AI Studio 키 직접 사용. 한도 없음(본인 부담)."
         case .appleVision:
             return "온디바이스. 무료·오프라인. 한국어 인쇄체 정확도 보통."
-        case .geminiFlash:
-            return "Google AI Studio API 키 필요. 무료 티어 일 1,500요청. 한국어 OCR 정확도 높음."
         }
     }
 
     nonisolated var requiresAPIKey: Bool {
-        switch self {
-        case .appleVision: return false
-        case .geminiFlash: return true
-        }
+        self == .geminiFlash
     }
 
     nonisolated var requiresNetwork: Bool {
-        switch self {
-        case .appleVision: return false
-        case .geminiFlash: return true
-        }
+        self != .appleVision
     }
 }
 

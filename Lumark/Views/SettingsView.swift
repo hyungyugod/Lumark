@@ -148,6 +148,19 @@ struct SettingsView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.vertical, 2)
 
+            // Lumark Cloud인데 엔드포인트 미설정 (개발자 안내)
+            if ocrPrefs.engine == .lumarkCloud && !OCRPreferences.isCloudConfigured {
+                HStack(alignment: .top, spacing: 6) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.system(size: 12))
+                        .foregroundStyle(.orange)
+                    Text("Lumark Cloud 서버가 아직 연결되지 않았어요. 개발자: server/ocr-proxy 배포 후 OCRPreferences.lumarkCloudEndpoint를 설정하세요. 그 전까지는 '내 Gemini 키'를 사용하세요.")
+                        .font(.system(size: 11.5))
+                        .foregroundStyle(Palette.subtle)
+                }
+                .padding(.vertical, 2)
+            }
+
             // Gemini 선택 시 모델 picker
             if ocrPrefs.engine == .geminiFlash {
                 Picker("모델", selection: Binding(

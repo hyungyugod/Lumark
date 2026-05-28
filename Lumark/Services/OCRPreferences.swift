@@ -13,9 +13,16 @@ import SwiftUI
 final class OCRPreferences {
     static let shared = OCRPreferences()
 
+    /// Lumark Cloud 프록시(Cloudflare Worker) 엔드포인트.
+    /// 배포 후 `server/ocr-proxy/README.md` 5번 단계대로 여기에 URL을 채운다.
+    /// 미설정(placeholder) 상태면 lumarkCloud 선택 시 안내 에러.
+    static let lumarkCloudEndpoint = "https://lumark-ocr-proxy.hyungyugod.workers.dev/ocr"
+    static var isCloudConfigured: Bool { !lumarkCloudEndpoint.contains("CHANGE-ME") }
+
     private static let engineKey       = "lumark.ocr.engine"
     private static let geminiKeyName   = "lumark.ocr.geminiAPIKey"
     private static let geminiModelKey  = "lumark.ocr.geminiModel"
+    private static let deviceIDKey     = "lumark.ocr.deviceID"
 
     /// 현재 선택된 OCR 엔진.
     var engine: OCREngine {
@@ -36,15 +43,28 @@ final class OCRPreferences {
     /// 키 자체는 노출하지 않음 — load는 selectedProvider 안에서만.
     private(set) var hasGeminiKey: Bool
 
+    /// 익명 기기 식별자 — 프록시 기기당 한도 카운팅용. 개인정보 아님(랜덤 UUID).
+    let deviceID: String
+
     private init() {
         let raw = UserDefaults.standard.string(forKey: Self.engineKey)
-        self.engine = raw.flatMap { OCREngine(rawValue: $0) } ?? .appleVision
+        // 기본값 = Lumark Cloud (키 입력 없이 바로 사용). 배포 대상.
+        self.engine = raw.flatMap { OCREngine(rawValue: $0) } ?? .lumarkCloud
         let modelRaw = UserDefaults.standard.string(forKey: Self.geminiModelKey)
         // 기본값은 Flash Lite (가장 저렴, 무료 배포 비용 최소화). 과거 기본값
         // 2.0-flash가 저장돼 있으면 신규 계정에선 404이므로 Flash Lite로 자동 승격.
         let resolved = modelRaw.flatMap { GeminiModel(rawValue: $0) } ?? .flashLite25
         self.geminiModel = (resolved == .flash20) ? .flashLite25 : resolved
         self.hasGeminiKey = SecureStore.load(Self.geminiKeyName) != nil
+
+        // 기기 UUID 생성/복원
+        if let existing = UserDefaults.standard.string(forKey: Self.deviceIDKey) {
+            self.deviceID = existing
+        } else {
+            let new = UUID().uuidString
+            UserDefaults.standard.set(new, forKey: Self.deviceIDKey)
+            self.deviceID = new
+        }
     }
 
     /// Settings UI에서 호출. 빈 문자열이면 키 삭제로 취급.
@@ -63,13 +83,15 @@ final class OCRPreferences {
     /// Gemini가 선택됐는데 키가 없으면 missingAPIKey 에러를 throw하는 provider 반환.
     func selectedProvider() -> OCRProvider {
         switch engine {
-        case .appleVision:
-            return VisionOCRProvider()
+        case .lumarkCloud:
+            return ProxyOCRProvider(endpoint: Self.lumarkCloudEndpoint, deviceID: deviceID)
         case .geminiFlash:
             guard let key = SecureStore.load(Self.geminiKeyName) else {
                 return MissingKeyProvider(engine: .geminiFlash)
             }
             return GeminiOCRProvider(apiKey: key, model: geminiModel.rawValue)
+        case .appleVision:
+            return VisionOCRProvider()
         }
     }
 }

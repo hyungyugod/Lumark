@@ -1,0 +1,22 @@
+name = "lumark-ocr-proxy"
+main = "src/index.js"
+compatibility_date = "2026-05-01"
+
+# 기기당 / 전체 일일 페이지 한도 — 비용 상한. 필요에 맞게 조정.
+# 전체 1500p/일 ≈ Flash Lite 기준 하루 약 $0.6, 월 $18 수준 (안전).
+[vars]
+MODEL = "gemini-2.5-flash-lite"
+PER_DEVICE_DAILY = "60"
+GLOBAL_DAILY = "1500"
+# AI Gateway 경유 (Worker→Gemini 지역 차단 회피). 대시보드에서 게이트웨이 생성 후 채움.
+# CF_ACCOUNT_ID: `npx wrangler whoami` 의 Account ID. CF_GATEWAY: 만든 게이트웨이 이름.
+CF_ACCOUNT_ID = "fb8d5badc96f29c766dbc8eb0e10b512"
+CF_GATEWAY = "lumark"
+
+# 일일 카운터 저장용 KV. 아래 id는 `wrangler kv namespace create RATE` 후 채움.
+[[kv_namespaces]]
+binding = "RATE"
+id = "6be1029749204cb69c2f34631b47cf6c"
+
+# GEMINI_KEY 는 vars 가 아니라 secret 으로 등록:
+#   npx wrangler secret put GEMINI_KEY

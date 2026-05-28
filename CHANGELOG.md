@@ -105,6 +105,15 @@
 - **midY 정렬 후 greedy 줄 클러스터링** — 고정 bin 경계 straddle 문제 회피. 줄 안에서 x 정렬 후 gap(≤ 6% 폭) 병합.
 - 실 페이지에서 "분화된 조직의 한 형태에서 다른 것으로 변화된 것"이 7~8조각 → 1개 영역으로 병합. 테스트 2개 추가 (흔들리는 y / 줄 간격 분리).
 
+### Added (Lumark Cloud 프록시 — 2026-05-28)
+- **`server/ocr-proxy` Cloudflare Worker.** Gemini 키를 서버 secret에 보관, 앱은 키를 모름(추출 불가). 다운샘플 이미지를 받아 Gemini 호출 후 spans 반환. **기기당 + 전체 일일 페이지 한도**(KV 카운터)로 청구서 상한. 배포 가이드 `server/ocr-proxy/README.md`.
+- **AI Gateway 경유 (지역 차단 회피).** Cloudflare Worker 직접 egress가 Gemini 미지원 리전으로 잡혀 "User location is not supported" 발생 → AI Gateway(`gateway.ai.cloudflare.com/.../google-ai-studio/`) 경유 + `x-goog-api-key` 헤더로 우회. CF_ACCOUNT_ID/CF_GATEWAY env로 토글, 미설정 시 직접 호출 폴백. 실 이미지 E2E 검증 완료(한국어 OCR 정상).
+- **`OCREngine.lumarkCloud`** 신규 + 기본값. 키 입력 없이 프록시 경유. `ProxyOCRProvider`가 다운샘플→base64→Worker POST(X-Device-ID)→spans. 429(한도초과)는 친화적 메시지 + "내 Gemini 키로 전환" 안내.
+- **기기 익명 UUID** (UserDefaults) — 프록시 기기당 한도 카운팅용.
+- 엔진 3종: Lumark Cloud(기본·키 불필요) / 내 Gemini 키(고급·무한도) / Apple Vision(오프라인).
+- ⚠️ 배포 전까지 `lumarkCloudEndpoint`가 placeholder라 lumarkCloud는 안내 에러. 그동안 "내 Gemini 키" 사용. (기존 사용자는 선택이 UserDefaults에 남아 그대로 동작.)
+- ProxyOCRProviderTests 6개 추가.
+
 ### Changed (Gemini 기본 모델 2.5로 — 2026-05-28)
 - **기본 모델 gemini-2.0-flash → gemini-2.5-flash.** 2.0-flash가 2025년 이후 신규 계정에 404("no longer available to new users"). 신규 계정에서 동작하는 2.5 계열을 기본값으로. 저장된 모델이 2.0-flash면 로드 시 2.5-flash로 자동 승격. picker에서 2.0/1.5는 "기존 계정 전용"으로 표기.
 
