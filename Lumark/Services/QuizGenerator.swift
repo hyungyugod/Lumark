@@ -48,8 +48,28 @@ protocol QuizProvider: Sendable {
 
 // MARK: - 선택
 
+/// 현재 엔진으로 퀴즈를 만들 수 있는지.
+enum QuizSupport {
+    case ready              // Lumark Cloud, 또는 키 있는 Gemini
+    case needsKey           // Gemini인데 키 없음
+    case unsupportedEngine  // Apple Vision (LLM 아님)
+}
+
 @MainActor
 enum QuizGenerator {
+    /// 지금 설정으로 퀴즈 생성이 가능한지 사전 확인 (로딩 깜빡임 없이 안내하려고).
+    static func support() -> QuizSupport {
+        let prefs = OCRPreferences.shared
+        switch prefs.engine {
+        case .lumarkCloud:
+            return .ready
+        case .geminiFlash:
+            return SecureStore.load("lumark.ocr.geminiAPIKey") != nil ? .ready : .needsKey
+        case .appleVision:
+            return .unsupportedEngine
+        }
+    }
+
     /// 현재 OCR 엔진 설정에 맞는 퀴즈 provider.
     static func selectedProvider() -> QuizProvider {
         let prefs = OCRPreferences.shared

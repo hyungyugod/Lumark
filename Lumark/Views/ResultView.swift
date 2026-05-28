@@ -341,6 +341,17 @@ struct ResultView: View {
     /// 정리된 노트 텍스트로 Q&A 카드 생성 → 저장 → 학습 화면.
     private func generateQuiz() {
         guard !isGeneratingQuiz else { return }
+        // 엔진이 퀴즈를 못 만드는 경우 로딩 없이 바로 안내(깜빡임 방지).
+        switch QuizGenerator.support() {
+        case .ready:
+            break
+        case .needsKey:
+            activeError = .wrapped(code: "QUIZ", message: "Gemini API 키가 없어요. 설정 → OCR 엔진에서 키를 등록하거나 'Lumark Cloud' 엔진을 쓰면 바로 만들 수 있어요.")
+            return
+        case .unsupportedEngine:
+            activeError = .wrapped(code: "QUIZ", message: "지금 OCR 엔진(Apple Vision)으로는 퀴즈를 못 만들어요. 설정 → OCR 엔진에서 'Lumark Cloud'나 '내 Gemini 키'로 바꿔 주세요.")
+            return
+        }
         // 카드는 노트에 관계로 저장되므로 먼저 영속화. 저장 실패하면 중단.
         if !isPersisted {
             guard save() else { return }

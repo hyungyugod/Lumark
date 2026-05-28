@@ -89,9 +89,15 @@ struct MyQuizzesView: View {
                         .font(.system(size: 15, weight: .semibold))
                         .foregroundStyle(Palette.ink)
                         .lineLimit(1)
-                    Text("\(note.flashcards.count)개 카드 · \(note.createdAt.formatted(date: .abbreviated, time: .omitted))")
+                    Text("\(note.flashcards.count)개 카드 · \(koreanDate(note.createdAt))")
                         .font(.system(size: 12))
                         .foregroundStyle(Palette.subtle)
+                    if let preview = firstQuestion(note) {
+                        Text(preview)
+                            .font(.system(size: 11.5))
+                            .foregroundStyle(Palette.muted)
+                            .lineLimit(1)
+                    }
                 }
 
                 Spacer()
@@ -144,6 +150,19 @@ struct MyQuizzesView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(.horizontal, Space.s5)
         .padding(.bottom, Space.s7)
+    }
+
+    // MARK: - 포맷
+
+    private func koreanDate(_ date: Date) -> String {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "ko_KR")
+        f.dateFormat = "M월 d일"
+        return f.string(from: date)
+    }
+
+    private func firstQuestion(_ note: Note) -> String? {
+        note.flashcards.sorted { $0.createdAt < $1.createdAt }.first?.question
     }
 
     // MARK: - 삭제
