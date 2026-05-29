@@ -345,6 +345,9 @@ struct ResultView: View {
         switch QuizGenerator.support() {
         case .ready:
             break
+        case .needsLogin:
+            activeError = .wrapped(code: "QUIZ", message: "Lumark Cloud로 퀴즈를 만들려면 로그인이 필요해요. 설정 → 계정에서 로그인하거나, '내 Gemini 키'로 바꿔 주세요.")
+            return
         case .needsKey:
             activeError = .wrapped(code: "QUIZ", message: "Gemini API 키가 없어요. 설정 → OCR 엔진에서 키를 등록하거나 'Lumark Cloud' 엔진을 쓰면 바로 만들 수 있어요.")
             return

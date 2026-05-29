@@ -7,7 +7,8 @@
 - **Supabase 스키마** (`server/supabase/schema.sql`) — `profiles`(크레딧) + `credit_ledger`(감사) + RLS(본인 읽기) + 가입 보너스 트리거 + `spend_credits`/`refund_credits`/`refill_if_due` RPC(원자적, service_role 전용). Apple 로그인, 가입+매월 100, OCR 1·페이지, 퀴즈 2·회.
 - **iOS 로그인** — supabase-swift SDK. `Supa`(클라이언트) / `AuthManager`(Sign in with Apple, nonce) / `SignInView` / 설정 "계정" 섹션. `SupabaseConfig`에 URL+publishable 키(공개).
 - **Worker 크레딧 연동** (`server/ocr-proxy`) — Supabase 사용자 JWT를 `/auth/v1/user`로 검증 → `spend_credits` 예약 차감(부족 시 402) → Gemini 실패 시 `refund_credits`. 기기당 한도/X-Device-ID 제거(계정 크레딧이 대체), 전역 일일 backstop만 유지.
-- ⚠️ **아직 비활성:** Apple 로그인은 유료 Apple Developer Program 필요(등록 중). Worker 신버전은 로그인+JWT 전송이 앱에 붙은 뒤 배포 예정(그전까진 기존 버전 라이브).
+- **앱 크레딧 연동** — Proxy OCR/Quiz provider가 `Authorization: Bearer <JWT>` 전송(만료 시 SDK 자동 갱신), 401→로그인 안내·402→크레딧 부족 안내로 매핑. 응답의 `credits`로 잔액 즉시 갱신. 설정 "계정"에 잔액 표시. 미로그인 시 퀴즈는 `support()` 사전 체크로 깔끔히 안내.
+- ⚠️ **아직 비활성:** Apple 로그인은 유료 Apple Developer Program 필요(등록 중). Worker 신버전 + 이 앱 변경(JWT 전송)은 **함께** 배포해야 함(따로 나가면 기존 Lumark Cloud가 깨짐) — 로그인 작동 확인 후 동시 롤아웃.
 
 ### Changed (퀴즈 학습/안내 다듬기 — 2026-05-28)
 - **플래시카드 학습에 채점 + 완료 화면.** 정답을 본 뒤 "모르겠어 / 알아!"로 채점 → 모든 카드를 채점하면 완료 화면(알아요·다시 볼 카드 집계) → "모르는 N장 다시 보기"로 틀린 카드만 재학습. 셔플/처음부터/닫기 유지. (간격반복 SRS는 여전히 v0.2 백로그.)

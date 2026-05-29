@@ -79,6 +79,8 @@ enum GeminiModel: String, Codable, CaseIterable, Sendable, Identifiable {
 /// OCR 실패 케이스. ProcessingViewModel이 받아 LumarkError로 래핑.
 enum OCRProviderError: Error, LocalizedError {
     case missingAPIKey(engine: OCREngine)
+    case notSignedIn
+    case creditsExhausted(message: String)
     case networkFailure(underlying: Error)
     case invalidResponse(detail: String)
     case apiError(status: Int, body: String)
@@ -87,6 +89,10 @@ enum OCRProviderError: Error, LocalizedError {
         switch self {
         case .missingAPIKey(let e):
             return "\(e.displayName) API 키가 설정되지 않았어요. 설정에서 입력해주세요."
+        case .notSignedIn:
+            return "Lumark Cloud를 쓰려면 로그인이 필요해요. 설정 → 계정에서 로그인하거나, 내 Gemini 키로 바꿔주세요."
+        case .creditsExhausted(let message):
+            return message
         case .networkFailure(let err):
             return "OCR 네트워크 오류: \(err.localizedDescription)"
         case .invalidResponse(let detail):

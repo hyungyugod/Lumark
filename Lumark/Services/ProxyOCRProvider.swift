@@ -17,20 +17,17 @@ import UIKit
 
 struct ProxyOCRProvider: OCRProvider {
     let endpoint: String
-    let deviceID: String
     let appToken: String?
     let longSideTarget: CGFloat
     let jpegQuality: CGFloat
 
     nonisolated init(
         endpoint: String,
-        deviceID: String,
         appToken: String? = nil,
         longSideTarget: CGFloat = 1536,
         jpegQuality: CGFloat = 0.82
     ) {
         self.endpoint = endpoint
-        self.deviceID = deviceID
         self.appToken = appToken
         self.longSideTarget = longSideTarget
         self.jpegQuality = jpegQuality
@@ -45,6 +42,11 @@ struct ProxyOCRProvider: OCRProvider {
             throw OCRProviderError.invalidResponse(detail: "페이지 이미지 인코딩 실패")
         }
 
+        // 로그인 JWT(필요 시 자동 갱신). 없으면 로그인 안내.
+        guard let token = await AuthManager.shared.freshAccessToken() else {
+            throw OCRProviderError.notSignedIn
+        }
+
         let payload: [String: Any] = ["image_base64": jpeg.base64EncodedString()]
         let bodyData: Data
         do {
@@ -56,7 +58,7 @@ struct ProxyOCRProvider: OCRProvider {
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue(deviceID, forHTTPHeaderField: "X-Device-ID")
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         if let appToken, !appToken.isEmpty {
             request.setValue(appToken, forHTTPHeaderField: "X-App-Token")
         }
@@ -74,9 +76,15 @@ struct ProxyOCRProvider: OCRProvider {
         guard let http = response as? HTTPURLResponse else {
             throw OCRProviderError.invalidResponse(detail: "HTTPURLResponse 아님")
         }
+        if http.statusCode == 401 {
+            throw OCRProviderError.notSignedIn
+        }
+        if http.statusCode == 402 {
+            let msg = Self.errorMessage(from: data) ?? "크레딧이 부족해요. 내일 충전되거나, 설정에서 내 Gemini 키로 쓸 수 있어요."
+            throw OCRProviderError.creditsExhausted(message: msg)
+        }
         if http.statusCode == 429 {
-            // 프록시가 한도 메시지를 JSON으로 줌
-            let msg = Self.errorMessage(from: data) ?? "오늘 사용량 한도에 도달했어요. 내일 다시 시도하거나 설정에서 내 Gemini 키를 쓸 수 있어요."
+            let msg = Self.errorMessage(from: data) ?? "지금 사용량이 많아요. 잠시 후 다시 시도해주세요."
             throw OCRProviderError.apiError(status: 429, body: msg)
         }
         guard (200..<300).contains(http.statusCode) else {
@@ -84,6 +92,10 @@ struct ProxyOCRProvider: OCRProvider {
             throw OCRProviderError.apiError(status: http.statusCode, body: msg)
         }
 
+        // 응답이 알려준 최신 잔액을 반영.
+        if let credits = Self.creditsValue(from: data) {
+            await AuthManager.shared.setCreditsFromServer(credits)
+        }
         return try Self.parseSpansResponse(data: data)
     }
 
@@ -120,5 +132,11 @@ struct ProxyOCRProvider: OCRProvider {
         guard let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let msg = obj["error"] as? String else { return nil }
         return msg
+    }
+
+    /// 응답 본문의 `credits`(남은 잔액) 정수. 없으면 nil.
+    nonisolated static func creditsValue(from data: Data) -> Int? {
+        guard let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
+        return obj["credits"] as? Int
     }
 }

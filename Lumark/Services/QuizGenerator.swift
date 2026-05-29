@@ -18,6 +18,8 @@ struct QuizCard: Sendable, Equatable {
 enum QuizError: Error, LocalizedError {
     case engineUnsupported          // Apple Vision 등 LLM 아님
     case missingAPIKey
+    case notSignedIn
+    case creditsExhausted(String)
     case emptyInput
     case network(Error)
     case api(status: Int, body: String)
@@ -29,6 +31,10 @@ enum QuizError: Error, LocalizedError {
             return "퀴즈 생성은 Lumark Cloud 또는 내 Gemini 키 엔진에서만 돼요. 설정에서 바꿔주세요."
         case .missingAPIKey:
             return "Gemini API 키가 설정되지 않았어요. 설정에서 입력해주세요."
+        case .notSignedIn:
+            return "Lumark Cloud를 쓰려면 로그인이 필요해요. 설정 → 계정에서 로그인하거나, 내 Gemini 키로 바꿔주세요."
+        case .creditsExhausted(let msg):
+            return msg
         case .emptyInput:
             return "카드를 만들 내용이 없어요."
         case .network(let e):
@@ -50,7 +56,8 @@ protocol QuizProvider: Sendable {
 
 /// 현재 엔진으로 퀴즈를 만들 수 있는지.
 enum QuizSupport {
-    case ready              // Lumark Cloud, 또는 키 있는 Gemini
+    case ready              // Lumark Cloud(로그인됨), 또는 키 있는 Gemini
+    case needsLogin         // Lumark Cloud인데 로그인 안 됨
     case needsKey           // Gemini인데 키 없음
     case unsupportedEngine  // Apple Vision (LLM 아님)
 }
@@ -62,7 +69,7 @@ enum QuizGenerator {
         let prefs = OCRPreferences.shared
         switch prefs.engine {
         case .lumarkCloud:
-            return .ready
+            return AuthManager.shared.isSignedIn ? .ready : .needsLogin
         case .geminiFlash:
             return SecureStore.load("lumark.ocr.geminiAPIKey") != nil ? .ready : .needsKey
         case .appleVision:
@@ -77,7 +84,6 @@ enum QuizGenerator {
         case .lumarkCloud:
             return ProxyQuizProvider(
                 endpoint: OCRPreferences.lumarkCloudQuizEndpoint,
-                deviceID: prefs.deviceID,
                 appToken: OCRPreferences.appToken
             )
         case .geminiFlash:

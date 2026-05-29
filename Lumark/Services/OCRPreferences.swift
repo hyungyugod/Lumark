@@ -91,7 +91,7 @@ final class OCRPreferences {
     func selectedProvider() -> OCRProvider {
         switch engine {
         case .lumarkCloud:
-            return ProxyOCRProvider(endpoint: Self.lumarkCloudEndpoint, deviceID: deviceID, appToken: Self.appToken)
+            return ProxyOCRProvider(endpoint: Self.lumarkCloudEndpoint, appToken: Self.appToken)
         case .geminiFlash:
             guard let key = SecureStore.load(Self.geminiKeyName) else {
                 return MissingKeyProvider(engine: .geminiFlash)

@@ -54,6 +54,9 @@ struct SettingsView: View {
             .sheet(isPresented: $showingSignIn) {
                 SignInView()
             }
+            .task {
+                if auth.isSignedIn { await auth.refreshCredits() }
+            }
         }
     }
 
@@ -78,6 +81,23 @@ struct SettingsView: View {
                     Spacer()
                 }
                 .padding(.vertical, 2)
+
+                HStack(spacing: 6) {
+                    Image(systemName: "creditcard")
+                        .font(.system(size: 13))
+                        .foregroundStyle(Palette.brass)
+                    Text("크레딧")
+                        .font(.system(size: 14))
+                        .foregroundStyle(Palette.ink2)
+                    Spacer()
+                    Text(auth.credits.map { "\($0)" } ?? "—")
+                        .font(Typo.mono)
+                        .foregroundStyle(Palette.ink)
+                }
+
+                Text("정리본 1페이지 = 1 · 퀴즈 1회 = 2. 매달 충전돼요. 내 Gemini 키를 쓰면 크레딧 없이 무제한이에요.")
+                    .font(.system(size: 11.5))
+                    .foregroundStyle(Palette.subtle)
 
                 Button(role: .destructive) {
                     Task { await auth.signOut() }
