@@ -2,6 +2,13 @@
 
 ## [Unreleased] — v0.1 (MVP) 작업 중
 
+### Added (계정+크레딧 백엔드 기반 — 2026-05-29, 아직 비활성)
+- **목적:** 키리스 Lumark Cloud의 비용 폭주 방지 + 공정 분배. 계정별 크레딧으로 정리본(OCR)/퀴즈 생성 제한. 본인 Gemini 키는 무제한(프록시 우회). 유료 충전 없음(군 복무 중 수익 불가). 계획서 `docs/backend-plan.md`.
+- **Supabase 스키마** (`server/supabase/schema.sql`) — `profiles`(크레딧) + `credit_ledger`(감사) + RLS(본인 읽기) + 가입 보너스 트리거 + `spend_credits`/`refund_credits`/`refill_if_due` RPC(원자적, service_role 전용). Apple 로그인, 가입+매월 100, OCR 1·페이지, 퀴즈 2·회.
+- **iOS 로그인** — supabase-swift SDK. `Supa`(클라이언트) / `AuthManager`(Sign in with Apple, nonce) / `SignInView` / 설정 "계정" 섹션. `SupabaseConfig`에 URL+publishable 키(공개).
+- **Worker 크레딧 연동** (`server/ocr-proxy`) — Supabase 사용자 JWT를 `/auth/v1/user`로 검증 → `spend_credits` 예약 차감(부족 시 402) → Gemini 실패 시 `refund_credits`. 기기당 한도/X-Device-ID 제거(계정 크레딧이 대체), 전역 일일 backstop만 유지.
+- ⚠️ **아직 비활성:** Apple 로그인은 유료 Apple Developer Program 필요(등록 중). Worker 신버전은 로그인+JWT 전송이 앱에 붙은 뒤 배포 예정(그전까진 기존 버전 라이브).
+
 ### Changed (퀴즈 학습/안내 다듬기 — 2026-05-28)
 - **플래시카드 학습에 채점 + 완료 화면.** 정답을 본 뒤 "모르겠어 / 알아!"로 채점 → 모든 카드를 채점하면 완료 화면(알아요·다시 볼 카드 집계) → "모르는 N장 다시 보기"로 틀린 카드만 재학습. 셔플/처음부터/닫기 유지. (간격반복 SRS는 여전히 v0.2 백로그.)
 - **퀴즈 만들기 엔진 사전 가드.** 엔진이 퀴즈 미지원(Apple Vision)이거나 Gemini 키가 없으면 로딩 깜빡임 없이 즉시 안내(설정 유도). `QuizGenerator.support()` 추가.

@@ -14,9 +14,11 @@ struct SettingsView: View {
     @State private var exportPrefs = ExportPreferences.shared
     @State private var debugPrefs = DebugPreferences.shared
     @State private var ocrPrefs = OCRPreferences.shared
+    @State private var auth = AuthManager.shared
     @State private var geminiKeyInput: String = ""
     @State private var showingGeminiKeySaved = false
     @State private var showingKeyGuide = false
+    @State private var showingSignIn = false
     @Environment(\.dismiss) private var dismiss
     @FocusState private var focusedColor: ColorCategory?
     @FocusState private var geminiKeyFocused: Bool
@@ -27,6 +29,7 @@ struct SettingsView: View {
                 Palette.cream.ignoresSafeArea()
 
                 Form {
+                    accountSection
                     colorMappingSection
                     ocrEngineSection
                     exportSection
@@ -48,7 +51,68 @@ struct SettingsView: View {
             .sheet(isPresented: $showingKeyGuide) {
                 GeminiKeyGuideSheet()
             }
+            .sheet(isPresented: $showingSignIn) {
+                SignInView()
+            }
         }
+    }
+
+    // MARK: - 계정
+
+    private var accountSection: some View {
+        Section {
+            if auth.isSignedIn {
+                HStack(spacing: Space.s3) {
+                    Image(systemName: "person.crop.circle.fill")
+                        .font(.system(size: 28))
+                        .foregroundStyle(Palette.brown)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("로그인됨")
+                            .font(.system(size: 14.5, weight: .semibold))
+                            .foregroundStyle(Palette.ink)
+                        Text(auth.email ?? "Apple 계정")
+                            .font(.system(size: 12))
+                            .foregroundStyle(Palette.subtle)
+                            .lineLimit(1)
+                    }
+                    Spacer()
+                }
+                .padding(.vertical, 2)
+
+                Button(role: .destructive) {
+                    Task { await auth.signOut() }
+                } label: {
+                    Text("로그아웃")
+                        .font(.system(size: 14))
+                }
+            } else {
+                Button {
+                    showingSignIn = true
+                } label: {
+                    HStack(spacing: Space.s3) {
+                        Image(systemName: "apple.logo")
+                            .font(.system(size: 18))
+                            .foregroundStyle(Palette.ink)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("로그인")
+                                .font(.system(size: 14.5, weight: .semibold))
+                                .foregroundStyle(Palette.ink)
+                            Text("Lumark Cloud 사용 시 필요 · 무료 크레딧")
+                                .font(.system(size: 12))
+                                .foregroundStyle(Palette.subtle)
+                        }
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(Palette.muted)
+                    }
+                }
+                .buttonStyle(.plain)
+            }
+        } header: {
+            sectionHeader("계정", subtitle: "Lumark Cloud 사용량 관리")
+        }
+        .listRowBackground(Palette.surface)
     }
 
     // MARK: - 색상 매핑

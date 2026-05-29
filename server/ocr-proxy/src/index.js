@@ -5,16 +5,25 @@
  *       기기당/전체 일일 한도로 비용 폭주 방지.
  *
  * 라우트:
- *   POST /ocr   { image_base64 }        → { spans: [{text,color}] }
- *   POST /quiz  { text, count }         → { cards: [{question,answer}] }
- *   둘 다 헤더 X-Device-ID 필요.
+ *   POST /ocr   { image_base64 }        → { spans: [{text,color}], credits }
+ *   POST /quiz  { text, count }         → { cards: [{question,answer}], credits }
+ *   둘 다 헤더 Authorization: Bearer <Supabase 사용자 JWT> 필요(로그인).
+ *
+ * 계정/크레딧: Supabase 사용자 JWT를 /auth/v1/user 로 검증 → userId.
+ *   동작 전 spend_credits 로 예약 차감(부족하면 402), Gemini 실패 시 refund_credits.
+ *   비용: OCR 1, Quiz 2 (env COST_OCR/COST_QUIZ로 조절).
  *
  * Worker 직접 egress가 Gemini 미지원 리전으로 잡히는 "User location not supported"
  * 회피를 위해 AI Gateway(google-ai-studio) 경유 (CF_ACCOUNT_ID + CF_GATEWAY 설정 시).
  *
- * 바인딩: KV(RATE), secret(GEMINI_KEY), vars(MODEL/PER_DEVICE_DAILY/GLOBAL_DAILY/
- *         CF_ACCOUNT_ID/CF_GATEWAY)
- *         선택: secret(APP_TOKEN) — 설정 시 X-App-Token 헤더 일치 강제(앱 전용 게이트).
+ * 바인딩:
+ *   KV(RATE)                         — 전역 일일 backstop 카운터
+ *   secret GEMINI_KEY                — Gemini API 키
+ *   secret SUPABASE_SECRET           — Supabase service_role(sb_secret_...) — RPC 호출용
+ *   var    SUPABASE_URL              — 프로젝트 URL
+ *   var    SUPABASE_ANON_KEY         — publishable 키(/auth/v1/user 검증용, 공개)
+ *   var    MODEL/GLOBAL_DAILY/CF_ACCOUNT_ID/CF_GATEWAY/COST_OCR/COST_QUIZ
+ *   선택   secret APP_TOKEN          — 설정 시 X-App-Token 헤더 일치 강제(보조 게이트)
  */
 
 // ── OCR (이미지 → 형광펜 텍스트 + 색)
@@ -113,23 +122,75 @@ async function bump(kv, key, by) {
   return next;
 }
 
-/** 한도 체크. 초과면 429 Response, 통과면 {devKey,gKey} 반환. */
-async function checkLimits(env, deviceId) {
-  const perDevice = parseInt(env.PER_DEVICE_DAILY || "60", 10);
-  const globalCap = parseInt(env.GLOBAL_DAILY || "1500", 10);
-  const day = todayKey();
-  const devKey = `d:${deviceId}:${day}`;
-  const gKey = `g:${day}`;
+/** 전역 일일 backstop. 비정상 폭주 안전망(계정 크레딧과 별개). 초과면 429. */
+async function checkGlobalCap(env) {
+  const cap = parseInt(env.GLOBAL_DAILY || "0", 10);
+  if (!cap) return null;
+  const gKey = `g:${todayKey()}`;
+  const used = parseInt((await env.RATE.get(gKey)) || "0", 10);
+  if (used >= cap) {
+    return json(429, { error: "서비스 전체 일일 한도에 도달했어요. 잠시 후 다시 시도해주세요." });
+  }
+  await bump(env.RATE, gKey, 1);
+  return null;
+}
 
-  const devUsed = parseInt((await env.RATE.get(devKey)) || "0", 10);
-  if (devUsed >= perDevice) {
-    return { limited: json(429, { error: "기기 일일 한도 초과", scope: "device", limit: perDevice }) };
+// ── 계정 + 크레딧 (Supabase) ────────────────────────────────
+
+/** 동작별 크레딧 비용. env로 덮어쓰기 가능. */
+function costOf(env, kind) {
+  if (kind === "ocr") return parseInt(env.COST_OCR || "1", 10);
+  return parseInt(env.COST_QUIZ || "2", 10);
+}
+
+/** Bearer JWT 검증 — Supabase /auth/v1/user 로 확인(서명 알고리즘 무관, 항상 정확).
+ *  유효하면 {userId}, 아니면 {error: Response}. */
+async function authUser(env, request) {
+  const authz = request.headers.get("Authorization") || "";
+  const token = authz.startsWith("Bearer ") ? authz.slice(7).trim() : "";
+  if (!token) return { error: json(401, { error: "로그인이 필요해요." }) };
+
+  const resp = await fetch(`${env.SUPABASE_URL}/auth/v1/user`, {
+    headers: { apikey: env.SUPABASE_ANON_KEY, Authorization: `Bearer ${token}` },
+  });
+  if (!resp.ok) {
+    return { error: json(401, { error: "로그인이 만료됐어요. 다시 로그인해주세요." }) };
   }
-  const gUsed = parseInt((await env.RATE.get(gKey)) || "0", 10);
-  if (gUsed >= globalCap) {
-    return { limited: json(429, { error: "서비스 일일 한도 초과", scope: "global", limit: globalCap }) };
+  const user = await resp.json().catch(() => null);
+  if (!user || !user.id) return { error: json(401, { error: "유효하지 않은 사용자." }) };
+  return { userId: user.id };
+}
+
+/** PostgREST RPC 호출 (service_role = secret key). 반환 스칼라를 그대로. */
+async function rpc(env, fn, args) {
+  const resp = await fetch(`${env.SUPABASE_URL}/rest/v1/rpc/${fn}`, {
+    method: "POST",
+    headers: {
+      apikey: env.SUPABASE_SECRET,
+      Authorization: `Bearer ${env.SUPABASE_SECRET}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(args),
+  });
+  if (!resp.ok) {
+    const t = await resp.text();
+    throw new Error(`rpc ${fn} ${resp.status}: ${t.slice(0, 200)}`);
   }
-  return { devKey, gKey };
+  return resp.json();
+}
+
+/** 월충전(있으면) 후 예약 차감. 새 잔액 반환, 부족하면 -1. */
+async function spendCredits(env, userId, amount, reason, ref) {
+  try { await rpc(env, "refill_if_due", { p_user: userId }); } catch (_) { /* 충전 실패는 무시 */ }
+  return await rpc(env, "spend_credits", {
+    p_user: userId, p_amount: amount, p_reason: reason, p_ref: ref || null,
+  });
+}
+
+/** Gemini 실패 시 예약분 환불(best-effort). */
+async function refundCredits(env, userId, amount, ref) {
+  try { await rpc(env, "refund_credits", { p_user: userId, p_amount: amount, p_ref: ref || null }); }
+  catch (_) { /* 환불 실패는 로그만(여기선 무시) */ }
 }
 
 /** Gemini generateContent 호출 (AI Gateway 경유 가능). inner JSON 문자열을 파싱해 반환. */
@@ -171,20 +232,27 @@ async function callGemini(env, parts, schema, maxOutputTokens) {
 
 // ── 라우트 핸들러
 
-async function handleOCR(env, deviceId, body) {
+async function handleOCR(env, userId, body) {
   const imageBase64 = body && body.image_base64;
   if (!imageBase64 || typeof imageBase64 !== "string") {
     return json(400, { error: "missing image_base64" });
   }
-  const lim = await checkLimits(env, deviceId);
-  if (lim.limited) return lim.limited;
+
+  // 예약 차감(부족하면 402, Gemini 호출 안 함).
+  const cost = costOf(env, "ocr");
+  let balance;
+  try { balance = await spendCredits(env, userId, cost, "ocr", null); }
+  catch (e) { return json(502, { error: "크레딧 처리 실패: " + e.message }); }
+  if (balance === -1) {
+    return json(402, { error: "크레딧이 부족해요. 내일 충전되거나, 설정에서 내 Gemini 키로 쓸 수 있어요.", needed: cost });
+  }
 
   const parts = [
     { inline_data: { mime_type: "image/jpeg", data: imageBase64 } },
     { text: OCR_PROMPT },
   ];
   const res = await callGemini(env, parts, OCR_SCHEMA, 2048);
-  if (res.error) return res.error;
+  if (res.error) { await refundCredits(env, userId, cost, "ocr"); return res.error; }
 
   let spans = [];
   if (Array.isArray(res.parsed?.spans)) {
@@ -193,23 +261,27 @@ async function handleOCR(env, deviceId, body) {
       .filter((s) => s.color === "yellow" || s.color === "orange")
       .map((s) => ({ text: s.text.trim(), color: s.color }));
   }
-  await bump(env.RATE, lim.devKey, 1);
-  await bump(env.RATE, lim.gKey, 1);
-  return json(200, { spans });
+  return json(200, { spans, credits: balance });
 }
 
-async function handleQuiz(env, deviceId, body) {
+async function handleQuiz(env, userId, body) {
   const text = body && body.text;
   if (!text || typeof text !== "string" || text.trim() === "") {
     return json(400, { error: "missing text" });
   }
   const count = Math.min(Math.max(parseInt(body.count || "10", 10) || 10, 1), 30);
-  const lim = await checkLimits(env, deviceId);
-  if (lim.limited) return lim.limited;
+
+  const cost = costOf(env, "quiz");
+  let balance;
+  try { balance = await spendCredits(env, userId, cost, "quiz", null); }
+  catch (e) { return json(502, { error: "크레딧 처리 실패: " + e.message }); }
+  if (balance === -1) {
+    return json(402, { error: "크레딧이 부족해요. 내일 충전되거나, 설정에서 내 Gemini 키로 쓸 수 있어요.", needed: cost });
+  }
 
   const parts = [{ text: quizPrompt(count) + "\n\n---\n\n" + text }];
   const res = await callGemini(env, parts, QUIZ_SCHEMA, 4096);
-  if (res.error) return res.error;
+  if (res.error) { await refundCredits(env, userId, cost, "quiz"); return res.error; }
 
   let cards = [];
   if (Array.isArray(res.parsed?.cards)) {
@@ -218,9 +290,7 @@ async function handleQuiz(env, deviceId, body) {
       .map((c) => ({ question: c.question.trim(), answer: c.answer.trim() }))
       .filter((c) => c.question !== "" && c.answer !== "");
   }
-  await bump(env.RATE, lim.devKey, 1);
-  await bump(env.RATE, lim.gKey, 1);
-  return json(200, { cards });
+  return json(200, { cards, credits: balance });
 }
 
 // ── 진입점
@@ -235,16 +305,18 @@ export default {
       return json(404, { error: "not found" });
     }
 
-    // 선택적 앱 토큰 게이트. APP_TOKEN secret이 설정돼 있을 때만 강제(없으면 하위호환).
-    // 공개 workers.dev URL이 알려져도 무차별 호출로 일일 한도를 태우는 걸 막는 1차 방어.
+    // (선택) 앱 토큰 게이트. APP_TOKEN이 설정돼 있을 때만 강제.
     if (env.APP_TOKEN && request.headers.get("X-App-Token") !== env.APP_TOKEN) {
       return json(401, { error: "unauthorized" });
     }
 
-    const deviceId = request.headers.get("X-Device-ID");
-    if (!deviceId || deviceId.length < 8) {
-      return json(400, { error: "missing X-Device-ID" });
-    }
+    // 로그인 사용자 검증 (Supabase JWT). 크레딧은 이 userId에 묶임.
+    const auth = await authUser(env, request);
+    if (auth.error) return auth.error;
+
+    // 전역 일일 backstop(안전망). GLOBAL_DAILY 설정 시에만.
+    const cap = await checkGlobalCap(env);
+    if (cap) return cap;
 
     let body;
     try {
@@ -253,7 +325,7 @@ export default {
       return json(400, { error: "invalid JSON body" });
     }
 
-    if (route === "/ocr") return handleOCR(env, deviceId, body);
-    return handleQuiz(env, deviceId, body);
+    if (route === "/ocr") return handleOCR(env, auth.userId, body);
+    return handleQuiz(env, auth.userId, body);
   },
 };
