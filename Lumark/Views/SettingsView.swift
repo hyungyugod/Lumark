@@ -524,13 +524,19 @@ struct SettingsView: View {
         } header: {
             sectionHeader("정보", subtitle: nil)
         } footer: {
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 6) {
                 Text("Lumark — 간호학과 학생용 형광펜 자동 분류 노트")
                     .font(.system(size: 11.5))
                     .foregroundStyle(Palette.subtle)
-                Text("Apple Vision Framework로 오프라인 OCR. 데이터는 기기에만 저장됩니다.")
-                    .font(.system(size: 11.5))
-                    .foregroundStyle(Palette.subtle)
+                HStack(alignment: .top, spacing: 5) {
+                    Image(systemName: "exclamationmark.triangle")
+                        .font(.system(size: 11))
+                        .foregroundStyle(Palette.brass)
+                    Text("노트는 이 기기에만 저장돼요. 앱을 지우거나 폰을 바꾸면 사라지고, 자동 백업·복원은 아직 없어요. 중요한 노트는 결과 화면의 \"공유/PDF 내보내기\"로 따로 저장해두세요.")
+                        .font(.system(size: 11.5))
+                        .foregroundStyle(Palette.subtle)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
             .padding(.top, 8)
         }

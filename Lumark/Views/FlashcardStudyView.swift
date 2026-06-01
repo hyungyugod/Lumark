@@ -194,6 +194,8 @@ private struct FlipCard: View {
     var onMark: (Bool) -> Void
 
     @State private var showAnswer = false
+    /// Dynamic Type 대응 — 질문/정답 본문이 "큰 텍스트" 설정에 따라 커짐.
+    @ScaledMetric(relativeTo: .title2) private var cardTextSize: CGFloat = 21
 
     var body: some View {
         VStack(spacing: 14) {
@@ -279,7 +281,7 @@ private struct FlipCard: View {
             Spacer()
 
             Text(text)
-                .font(.system(size: 21, weight: .semibold))
+                .font(.system(size: cardTextSize, weight: .semibold))
                 .foregroundStyle(Palette.ink)
                 .multilineTextAlignment(.center)
                 .lineSpacing(5)

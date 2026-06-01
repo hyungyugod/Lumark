@@ -17,11 +17,16 @@ struct MarkdownBodyView: View {
     /// 색별 ON/OFF 상태. true = 보임, false = dim
     let chips: [ColorCategory: Bool]
 
+    // Dynamic Type 대응 — "큰 텍스트" 접근성 설정에 본문이 따라 커짐.
+    @ScaledMetric(relativeTo: .largeTitle) private var h1Size: CGFloat = 26
+    @ScaledMetric(relativeTo: .headline) private var titleSize: CGFloat = 18
+    @ScaledMetric(relativeTo: .body) private var bodySize: CGFloat = 14
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             // H1 — 노트 제목
             Text(document.title)
-                .font(.system(size: 26, weight: .heavy, design: .serif))
+                .font(.system(size: h1Size, weight: .heavy, design: .serif))
                 .tracking(-0.4)
                 .foregroundStyle(Palette.ink)
                 .textSelection(.enabled)
@@ -33,7 +38,7 @@ struct MarkdownBodyView: View {
                 if let title = section.title {
                     HStack(alignment: .firstTextBaseline, spacing: 8) {
                         Text(title)
-                            .font(.system(size: 18, weight: .bold, design: .serif))
+                            .font(.system(size: titleSize, weight: .bold, design: .serif))
                             .tracking(-0.2)
                             .foregroundStyle(Palette.ink)
                             .textSelection(.enabled)
@@ -48,7 +53,7 @@ struct MarkdownBodyView: View {
                 } else if !section.items.isEmpty {
                     // 제목 없는 첫 섹션
                     Text("(주제 미지정)")
-                        .font(.system(size: 18, weight: .bold, design: .serif))
+                        .font(.system(size: titleSize, weight: .bold, design: .serif))
                         .foregroundStyle(Palette.subtle)
                         .padding(.top, Space.s5)
                         .padding(.bottom, Space.s2)
@@ -79,7 +84,7 @@ struct MarkdownBodyView: View {
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(item.text)
-                    .font(.system(size: 14))
+                    .font(.system(size: bodySize))
                     .lineSpacing(2)
                     .foregroundStyle(Palette.ink2)
                     .textSelection(.enabled)
