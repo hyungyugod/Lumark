@@ -12,6 +12,14 @@ import SwiftData
 struct LumarkApp: App {
     @State private var router = AppRouter()
 
+    init() {
+        if ProcessInfo.processInfo.arguments.contains("-uitest") ||
+            ProcessInfo.processInfo.environment["LUMARK_SKIP_ONBOARDING"] == "1" {
+            UserDefaults.standard.set(true, forKey: "lumark.onboarded")
+            UserDefaults.standard.didChooseGuest = true
+        }
+    }
+
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
             Note.self,

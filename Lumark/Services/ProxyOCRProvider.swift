@@ -59,6 +59,7 @@ struct ProxyOCRProvider: OCRProvider {
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.setValue(OCRPreferences.shared.deviceID, forHTTPHeaderField: "X-Device-ID")
         if let appToken, !appToken.isEmpty {
             request.setValue(appToken, forHTTPHeaderField: "X-App-Token")
         }

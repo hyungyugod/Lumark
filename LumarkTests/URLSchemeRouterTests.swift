@@ -55,4 +55,15 @@ struct URLSchemeRouterTests {
         let url = URL(string: "LUMARK://Import?id=\(id.uuidString)")!
         #expect(LumarkDeeplink.parse(url) == .importInbox(id: id))
     }
+
+    @Test("앱 번들에 lumark URL scheme 등록")
+    func appBundleRegistersScheme() throws {
+        let urlTypes = try #require(
+            Bundle.main.object(forInfoDictionaryKey: "CFBundleURLTypes") as? [[String: Any]]
+        )
+        let schemes = urlTypes
+            .compactMap { $0["CFBundleURLSchemes"] as? [String] }
+            .flatMap { $0 }
+        #expect(schemes.contains("lumark"))
+    }
 }

@@ -104,11 +104,52 @@ const QUIZ_SCHEMA = {
 
 // ── 헬퍼
 
+const MAX_JSON_BODY_BYTES = 9_000_000;
+const MAX_IMAGE_BASE64_CHARS = 8_000_000; // ~6MB JPEG before base64.
+const MAX_QUIZ_TEXT_CHARS = 30_000;
+
 function json(status, obj) {
   return new Response(JSON.stringify(obj), {
     status,
     headers: { "Content-Type": "application/json" },
   });
+}
+
+async function readJsonCapped(request) {
+  const contentLength = Number(request.headers.get("content-length") || "0");
+  if (contentLength > MAX_JSON_BODY_BYTES) {
+    return { error: json(413, { error: "요청이 너무 커요. 파일을 나눠서 다시 시도해주세요." }) };
+  }
+
+  const reader = request.body?.getReader();
+  if (!reader) {
+    return { error: json(400, { error: "invalid JSON body" }) };
+  }
+
+  const chunks = [];
+  let received = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    received += value.byteLength;
+    if (received > MAX_JSON_BODY_BYTES) {
+      return { error: json(413, { error: "요청이 너무 커요. 파일을 나눠서 다시 시도해주세요." }) };
+    }
+    chunks.push(value);
+  }
+
+  const bytes = new Uint8Array(received);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+
+  try {
+    return { body: JSON.parse(new TextDecoder().decode(bytes)) };
+  } catch {
+    return { error: json(400, { error: "invalid JSON body" }) };
+  }
 }
 
 function todayKey() {
@@ -243,6 +284,9 @@ async function handleOCR(env, userId, body) {
   if (!imageBase64 || typeof imageBase64 !== "string") {
     return json(400, { error: "missing image_base64" });
   }
+  if (imageBase64.length > MAX_IMAGE_BASE64_CHARS) {
+    return json(413, { error: "이미지가 너무 커요. 페이지를 낮은 해상도로 다시 보내주세요." });
+  }
 
   // 예약 차감(부족하면 402, Gemini 호출 안 함).
   const cost = costOf(env, "ocr");
@@ -275,6 +319,9 @@ async function handleQuiz(env, userId, body) {
   const text = body && body.text;
   if (!text || typeof text !== "string" || text.trim() === "") {
     return json(400, { error: "missing text" });
+  }
+  if (text.length > MAX_QUIZ_TEXT_CHARS) {
+    return json(413, { error: "퀴즈로 만들 텍스트가 너무 길어요. 정리본을 나눠서 시도해주세요." });
   }
   const count = Math.min(Math.max(parseInt(body.count || "10", 10) || 10, 1), 30);
 
@@ -318,6 +365,11 @@ export default {
       return json(401, { error: "unauthorized" });
     }
 
+    const contentLength = Number(request.headers.get("content-length") || "0");
+    if (contentLength > MAX_JSON_BODY_BYTES) {
+      return json(413, { error: "요청이 너무 커요. 파일을 나눠서 다시 시도해주세요." });
+    }
+
     // 로그인 사용자 검증 (Supabase JWT). 크레딧은 이 userId에 묶임.
     const auth = await authUser(env, request);
     if (auth.error) return auth.error;
@@ -326,12 +378,9 @@ export default {
     const cap = await globalCapExceeded(env);
     if (cap) return cap;
 
-    let body;
-    try {
-      body = await request.json();
-    } catch {
-      return json(400, { error: "invalid JSON body" });
-    }
+    const parsed = await readJsonCapped(request);
+    if (parsed.error) return parsed.error;
+    const body = parsed.body;
 
     if (route === "/ocr") return handleOCR(env, auth.userId, body);
     return handleQuiz(env, auth.userId, body);

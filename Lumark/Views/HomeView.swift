@@ -309,6 +309,7 @@ struct HomeView: View {
                     .foregroundStyle(Palette.ink2)
                     .frame(width: 40, height: 40)
             }
+            .accessibilityLabel("설정")
         }
     }
 
@@ -349,7 +350,7 @@ struct HomeView: View {
             ActionCard(
                 systemImage: "arrow.up.to.line",
                 label: "업로드",
-                desc: "PDF·이미지 선택",
+                desc: "PDF·이미지 선택\n1페이지당 1크레딧",
                 primary: true
             ) {
                 showingUploadMenu = true
@@ -423,11 +424,24 @@ struct HomeView: View {
     /// 처리 중인 노트가 path에 있을 때 호출 — path를 통째로 replace해서
     /// back 누르면 홈으로 가게 함.
     private func openFreshResult(_ note: Note, failedPages: Int = 0) {
+        persistFreshNote(note)
         resultsCache[note.id] = note
         if failedPages > 0 {
             pendingNotice[note.id] = "\(failedPages)페이지는 일시적인 오류로 못 읽었어요. 다시 변환하면 채워질 수 있어요."
         }
         path = [.result(noteID: note.id)]
+    }
+
+    /// Lumark의 핵심 약속은 "변환하면 정리본이 자동으로 쌓임"이다.
+    /// 결과 화면 캐시에만 두면 앱 재실행/최근 작업에서 사라지므로 완료 시 즉시 저장한다.
+    private func persistFreshNote(_ note: Note) {
+        guard !notes.contains(where: { $0.id == note.id }) else { return }
+        modelContext.insert(note)
+        do {
+            try modelContext.save()
+        } catch {
+            activeError = .wrapped(code: "SAVE", message: "정리본 저장 실패: \(error.localizedDescription)")
+        }
     }
 
     /// 기존 노트를 결과 화면에 push. RecentNotes에서 호출되면 path에 append돼서

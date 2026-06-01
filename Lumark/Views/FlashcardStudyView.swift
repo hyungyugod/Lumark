@@ -8,8 +8,11 @@
 //
 
 import SwiftUI
+import SwiftData
 
 struct FlashcardStudyView: View {
+    @Environment(\.modelContext) private var modelContext
+
     let cards: [Flashcard]
     var onClose: () -> Void
 
@@ -65,7 +68,7 @@ struct FlashcardStudyView: View {
     private var cardPager: some View {
         TabView(selection: $index) {
             ForEach(Array(session.enumerated()), id: \.offset) { i, card in
-                FlipCard(card: card, mark: marks[card.id]) { known in
+                FlipCard(card: card, mark: marks[card.id] ?? card.reviewMark) { known in
                     mark(card, known: known)
                 }
                 .padding(.horizontal, 24)
@@ -136,6 +139,8 @@ struct FlashcardStudyView: View {
 
     private func mark(_ card: Flashcard, known: Bool) {
         marks[card.id] = known
+        card.reviewState = known ? .known : .unknown
+        try? modelContext.save()
         UISelectionFeedbackGenerator().selectionChanged()
         if marks.count >= session.count {
             withAnimation(.easeInOut(duration: 0.25)) { showSummary = true }

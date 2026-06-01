@@ -107,21 +107,33 @@ struct ResultView: View {
                     }
                     .padding(.horizontal, 22)
                     .padding(.top, 20)
-                    .padding(.bottom, 120) // action bar 공간
+                    .padding(.bottom, quizCostBadge == nil ? 120 : 146) // action bar + quiz credit note 공간
                 }
             }
 
-            ResultActionBar(
-                onCopy: copy,
-                onShare: share,
-                onExportPDF: exportPDF,
-                quizSystemImage: note.flashcards.isEmpty ? "sparkles" : "rectangle.stack.fill",
-                quizLabel: note.flashcards.isEmpty ? "퀴즈 만들기" : "퀴즈 보기",
-                quizCost: quizCostBadge,
-                onQuiz: {
-                    if note.flashcards.isEmpty { generateQuiz() } else { showingStudy = true }
+            VStack(spacing: 6) {
+                if let cost = quizCostBadge {
+                    Text("퀴즈 생성 1회 = \(cost)크레딧")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(Palette.subtle)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 5)
+                        .background(Capsule().fill(Palette.surface.opacity(0.92)))
+                        .overlay(Capsule().strokeBorder(Palette.divider, lineWidth: 1))
                 }
-            )
+
+                ResultActionBar(
+                    onCopy: copy,
+                    onShare: share,
+                    onExportPDF: exportPDF,
+                    quizSystemImage: note.flashcards.isEmpty ? "sparkles" : "rectangle.stack.fill",
+                    quizLabel: note.flashcards.isEmpty ? "퀴즈 만들기" : "퀴즈 보기",
+                    quizCost: quizCostBadge,
+                    onQuiz: {
+                        if note.flashcards.isEmpty { generateQuiz() } else { showingStudy = true }
+                    }
+                )
+            }
             .padding(.horizontal, 16)
             .padding(.bottom, 16)
         }

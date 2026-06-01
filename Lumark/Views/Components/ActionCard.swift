@@ -49,7 +49,7 @@ struct ActionCard: View {
         }
         .buttonStyle(.plain)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(label). \(desc)")
+        .accessibilityLabel("\(label). \(desc.replacingOccurrences(of: "\n", with: ". "))")
         .accessibilityAddTraits(.isButton)
     }
 }

@@ -43,14 +43,16 @@ final class LumarkUITests: XCTestCase {
             skipBtn.tap()
         }
 
-        XCTAssertTrue(app.buttons["업로드. PDF·이미지 선택"].waitForExistence(timeout: 5),
+        XCTAssertTrue(app.buttons["업로드. PDF·이미지 선택. 1페이지당 1크레딧"].waitForExistence(timeout: 5),
                       "업로드 액션 카드가 보여야 함")
         XCTAssertTrue(app.buttons["카메라. 직접 촬영"].exists,
                       "카메라 액션 카드가 보여야 함")
         XCTAssertTrue(app.buttons["최근 작업. 내 정리본"].exists,
                       "최근 작업 액션 카드가 보여야 함")
-        XCTAssertTrue(app.buttons["설정. 색·라벨"].exists,
-                      "설정 액션 카드가 보여야 함")
+        XCTAssertTrue(app.buttons["내 퀴즈. 만든 카드 학습"].exists,
+                      "내 퀴즈 액션 카드가 보여야 함")
+        XCTAssertTrue(app.buttons["설정"].exists,
+                      "상단 설정 버튼이 보여야 함")
     }
 
     /// 설정 시트가 열리고 닫히는가.
@@ -63,8 +65,7 @@ final class LumarkUITests: XCTestCase {
             skipBtn.tap()
         }
 
-        // 설정 카드 탭
-        app.buttons["설정. 색·라벨"].tap()
+        app.buttons["설정"].tap()
 
         // 색상 매핑 섹션이 보여야 함
         XCTAssertTrue(app.staticTexts["색상 매핑"].waitForExistence(timeout: 3))
@@ -73,7 +74,7 @@ final class LumarkUITests: XCTestCase {
         app.buttons["완료"].tap()
 
         // 다시 홈으로
-        XCTAssertTrue(app.buttons["업로드. PDF·이미지 선택"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.buttons["업로드. PDF·이미지 선택. 1페이지당 1크레딧"].waitForExistence(timeout: 3))
     }
 
     /// 빈 상태 안내가 보이는가 (라이브러리에 노트가 없을 때).

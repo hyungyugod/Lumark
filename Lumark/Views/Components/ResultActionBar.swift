@@ -64,7 +64,7 @@ struct ResultActionBar: View {
                 if let cost {
                     HStack(spacing: 2) {
                         Image(systemName: "creditcard.fill").font(.system(size: 7))
-                        Text("\(cost)").font(.system(size: 9, weight: .bold))
+                        Text("\(cost)크레딧").font(.system(size: 8.5, weight: .bold))
                     }
                     .foregroundStyle(Palette.brown)
                     .padding(.horizontal, 5)
@@ -74,7 +74,7 @@ struct ResultActionBar: View {
                 }
             }
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel(cost.map { "\(label), \($0) 크레딧 사용" } ?? label)
+            .accessibilityLabel(cost.map { "\(label), 퀴즈 생성 1회 \($0)크레딧 사용" } ?? label)
         }
         .buttonStyle(.plain)
     }

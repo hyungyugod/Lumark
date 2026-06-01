@@ -36,6 +36,7 @@ struct ProxyQuizProvider: QuizProvider {
         req.httpMethod = "POST"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        req.setValue(OCRPreferences.shared.deviceID, forHTTPHeaderField: "X-Device-ID")
         if let appToken, !appToken.isEmpty {
             req.setValue(appToken, forHTTPHeaderField: "X-App-Token")
         }

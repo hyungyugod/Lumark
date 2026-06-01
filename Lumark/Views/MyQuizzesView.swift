@@ -9,9 +9,17 @@
 import SwiftUI
 import SwiftData
 
+private enum QuizLibraryTab: String, CaseIterable, Identifiable {
+    case quizzes = "퀴즈"
+    case unknown = "모르는 카드"
+
+    var id: String { rawValue }
+}
+
 struct MyQuizzesView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \Note.createdAt, order: .reverse) private var notes: [Note]
+    @Query(sort: \Flashcard.createdAt, order: .reverse) private var flashcards: [Flashcard]
 
     /// 행에서 "정리본 보기"를 누르면 호출 — HomeView가 결과 화면으로 push.
     var onOpenNote: (Note) -> Void
@@ -19,20 +27,41 @@ struct MyQuizzesView: View {
     @State private var studyingNote: Note?
     @State private var deleteTarget: Note?
     @State private var activeError: LumarkError?
+    @State private var selectedTab: QuizLibraryTab = .quizzes
 
     /// 카드가 있는 노트만. @Query가 이미 최신순 정렬.
     private var quizNotes: [Note] {
         notes.filter { !$0.flashcards.isEmpty }
     }
 
+    private var unknownCards: [Flashcard] {
+        flashcards.filter { $0.reviewState == .unknown }
+    }
+
     var body: some View {
         ZStack {
             Palette.cream.ignoresSafeArea()
 
-            if quizNotes.isEmpty {
-                emptyState
-            } else {
-                listContent
+            VStack(spacing: 0) {
+                tabPicker
+                    .padding(.horizontal, Space.s5)
+                    .padding(.top, Space.s2)
+                    .padding(.bottom, Space.s3)
+
+                switch selectedTab {
+                case .quizzes:
+                    if quizNotes.isEmpty {
+                        emptyState
+                    } else {
+                        quizListContent
+                    }
+                case .unknown:
+                    if unknownCards.isEmpty {
+                        unknownEmptyState
+                    } else {
+                        unknownListContent
+                    }
+                }
             }
         }
         .navigationTitle("내 퀴즈")
@@ -59,10 +88,32 @@ struct MyQuizzesView: View {
 
     // MARK: - 목록
 
-    private var listContent: some View {
+    private var tabPicker: some View {
+        Picker("퀴즈 보기", selection: $selectedTab) {
+            ForEach(QuizLibraryTab.allCases) { tab in
+                Text(tab.rawValue).tag(tab)
+            }
+        }
+        .pickerStyle(.segmented)
+    }
+
+    private var quizListContent: some View {
         ScrollView {
             LazyVStack(spacing: 10) {
                 ForEach(quizNotes) { row(for: $0) }
+            }
+            .padding(.horizontal, Space.s5)
+            .padding(.top, Space.s3)
+            .padding(.bottom, Space.s7)
+        }
+    }
+
+    private var unknownListContent: some View {
+        ScrollView {
+            LazyVStack(spacing: 10) {
+                ForEach(unknownCards) { card in
+                    unknownRow(for: card)
+                }
             }
             .padding(.horizontal, Space.s5)
             .padding(.top, Space.s3)
@@ -134,6 +185,63 @@ struct MyQuizzesView: View {
         }
     }
 
+    private func unknownRow(for card: Flashcard) -> some View {
+        HStack(alignment: .top, spacing: Space.s3) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(Palette.Highlight.orangeBG)
+                Image(systemName: "arrow.counterclockwise")
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundStyle(Palette.brown)
+            }
+            .frame(width: 44, height: 44)
+
+            VStack(alignment: .leading, spacing: 6) {
+                if let title = card.note?.title {
+                    Text(title)
+                        .font(.system(size: 11.5, weight: .medium))
+                        .foregroundStyle(Palette.muted)
+                        .lineLimit(1)
+                }
+
+                Text(card.question)
+                    .font(.system(size: 14.5, weight: .semibold))
+                    .foregroundStyle(Palette.ink)
+                    .lineLimit(2)
+
+                Text(card.answer)
+                    .font(.system(size: 12.5))
+                    .foregroundStyle(Palette.subtle)
+                    .lineLimit(2)
+            }
+
+            Spacer(minLength: 8)
+
+            Button {
+                markKnown(card)
+            } label: {
+                Label("안다", systemImage: "checkmark")
+                    .labelStyle(.titleAndIcon)
+                    .font(.system(size: 12.5, weight: .semibold))
+                    .foregroundStyle(Palette.cream)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(Capsule().fill(Palette.brown))
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("안다로 바꾸기")
+        }
+        .padding(Space.s3)
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(Palette.surface)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .strokeBorder(Palette.divider, lineWidth: 1)
+        )
+    }
+
     // MARK: - 빈 상태
 
     private var emptyState: some View {
@@ -145,6 +253,25 @@ struct MyQuizzesView: View {
                 .font(.system(size: 16, weight: .semibold))
                 .foregroundStyle(Palette.ink)
             Text("정리본을 연 다음 아래쪽 \"퀴즈 만들기\"를 누르면\n여기에 카드가 모여요.")
+                .font(.system(size: 13))
+                .foregroundStyle(Palette.subtle)
+                .multilineTextAlignment(.center)
+                .lineSpacing(2)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(.horizontal, Space.s5)
+        .padding(.bottom, Space.s7)
+    }
+
+    private var unknownEmptyState: some View {
+        VStack(spacing: Space.s3) {
+            Image(systemName: "checkmark.seal")
+                .font(.system(size: 44, weight: .light))
+                .foregroundStyle(Palette.muted)
+            Text("모르는 카드가 없어요")
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(Palette.ink)
+            Text("학습 중 \"모르겠어\"로 표시한 카드가\n여기에 모여요.")
                 .font(.system(size: 13))
                 .foregroundStyle(Palette.subtle)
                 .multilineTextAlignment(.center)
@@ -177,6 +304,16 @@ struct MyQuizzesView: View {
             try modelContext.save()
         } catch {
             activeError = .wrapped(code: "QUIZ-DEL", message: "퀴즈 삭제 실패: \(error.localizedDescription)")
+        }
+    }
+
+    private func markKnown(_ card: Flashcard) {
+        card.reviewState = .known
+        do {
+            try modelContext.save()
+            UISelectionFeedbackGenerator().selectionChanged()
+        } catch {
+            activeError = .wrapped(code: "QUIZ-KNOWN", message: "카드 상태 저장 실패: \(error.localizedDescription)")
         }
     }
 }

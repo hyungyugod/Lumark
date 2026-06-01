@@ -180,6 +180,7 @@ final class ProcessingViewModel {
             let ocrProvider = OCRPreferences.shared.selectedProvider()
             var perPageSpans: [[OCRSpan]] = []
             perPageSpans.reserveCapacity(pages.count)
+            var lastOCRProviderError: OCRProviderError?
             for (idx, regions) in perPageRegions.enumerated() {
                 if Task.isCancelled { return }
                 currentPage = idx + 1
@@ -200,6 +201,7 @@ final class ProcessingViewModel {
                         default:
                             // 네트워크/API 일시 오류 — 이 페이지만 건너뛰고 계속(spec §8 부분 성공).
                             // 앞서 성공한 페이지의 크레딧·결과는 보존됨.
+                            lastOCRProviderError = providerError
                             perPageSpans.append([])
                             failedPageCount += 1
                         }
@@ -215,6 +217,12 @@ final class ProcessingViewModel {
                 acc + spans.filter { !$0.text.isEmpty }.count
             }
             guard totalRecognized > 0 else {
+                if let lastOCRProviderError {
+                    throw LumarkError.wrapped(
+                        code: "OCR-CLOUD",
+                        message: lastOCRProviderError.errorDescription ?? "Lumark Cloud OCR에 실패했어요."
+                    )
+                }
                 throw LumarkError.ocrAllEmpty
             }
 
