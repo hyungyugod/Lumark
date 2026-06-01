@@ -2,6 +2,10 @@
 
 ## [Unreleased] — v0.1 (MVP) 작업 중
 
+### Changed (크레딧 정책 다듬기 — 2026-06-01)
+- **무료 크레딧 100 → 200** (가입 보너스 + 월 충전). 간호학과 시험기간 사용량 고려. top-up 모델 유지(안 쌓임). 적용 마이그레이션 `server/supabase/migrate_credits_200.sql`.
+- **OCR 크레딧 부족 사전 게이트.** Lumark Cloud로 정리본 만들 때 `startProcessing`에서 잔액을 새로고침해 페이지 수보다 적으면 시작 전에 안내(부족분 일부만 처리되고 도중 402로 깨지던 문제 방지). `startProcessing`을 게이트 + `beginJob`으로 분리.
+
 ### Added (계정+크레딧 백엔드 기반 — 2026-05-29, 아직 비활성)
 - **목적:** 키리스 Lumark Cloud의 비용 폭주 방지 + 공정 분배. 계정별 크레딧으로 정리본(OCR)/퀴즈 생성 제한. 본인 Gemini 키는 무제한(프록시 우회). 유료 충전 없음(군 복무 중 수익 불가). 계획서 `docs/backend-plan.md`.
 - **Supabase 스키마** (`server/supabase/schema.sql`) — `profiles`(크레딧) + `credit_ledger`(감사) + RLS(본인 읽기) + 가입 보너스 트리거 + `spend_credits`/`refund_credits`/`refill_if_due` RPC(원자적, service_role 전용). Apple 로그인, 가입+매월 100, OCR 1·페이지, 퀴즈 2·회.

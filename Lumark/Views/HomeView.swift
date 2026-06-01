@@ -548,14 +548,40 @@ struct HomeView: View {
         source: JobSource,
         inboxID: UUID? = nil
     ) {
-        // Lumark Cloud는 로그인 필요 — 페이지 렌더 전에 게이트(나중에 에러 대신 미리 안내).
-        if OCRPreferences.shared.engine == .lumarkCloud && !AuthManager.shared.isSignedIn {
-            // 공유 inbox로 들어온 잡이면 정리.
+        // Lumark Cloud 경로만 로그인 + 크레딧 사전 체크. (본인 키·Apple Vision은 바로 진행)
+        guard OCRPreferences.shared.engine == .lumarkCloud else {
+            beginJob(filename: filename, totalPages: totalPages, source: source, inboxID: inboxID)
+            return
+        }
+        // 로그인 게이트 — 페이지 렌더 전에.
+        guard AuthManager.shared.isSignedIn else {
             if let inboxID { AppGroup.cleanup(id: inboxID) }
             showingSignIn = true
             return
         }
+        // 크레딧 사전 체크 — 잔액을 새로고침한 뒤 페이지 수만큼 있는지 확인.
+        // (부족한데 시작하면 일부 페이지만 처리되고 도중에 402로 깨짐)
+        Task {
+            await AuthManager.shared.refreshCredits()
+            if let c = AuthManager.shared.credits, c < totalPages {
+                if let inboxID { AppGroup.cleanup(id: inboxID) }
+                activeError = .wrapped(
+                    code: "CREDITS",
+                    message: "이 정리본은 약 \(totalPages)크레딧이 필요한데 지금 \(c)개 남았어요. 다음 달에 충전되거나, 설정 → OCR 엔진에서 '내 Gemini 키'로 바꾸면 크레딧 없이 무제한으로 쓸 수 있어요."
+                )
+            } else {
+                beginJob(filename: filename, totalPages: totalPages, source: source, inboxID: inboxID)
+            }
+        }
+    }
 
+    /// 실제 잡 등록 + 영속화 + 처리 화면 진입. (게이트는 startProcessing에서 끝냄)
+    private func beginJob(
+        filename: String,
+        totalPages: Int,
+        source: JobSource,
+        inboxID: UUID? = nil
+    ) {
         let id = UUID()
         let job = PendingJob(
             id: id,
