@@ -19,6 +19,8 @@ import UIKit
 struct ResultView: View {
     let note: Note
     var onClose: (() -> Void)? = nil
+    /// 노트가 삭제됐을 때 그 id를 알려줌 (상위에서 캐시 정리용).
+    var onDeleted: ((UUID) -> Void)? = nil
 
     @Environment(\.modelContext) private var modelContext
     @Query private var allNotes: [Note]
@@ -506,9 +508,11 @@ struct ResultView: View {
 
     private func delete() {
         guard isPersisted else { return }
+        let deletedID = note.id   // 삭제 전에 id 확보(삭제 후엔 접근 위험)
         modelContext.delete(note)
         do {
             try modelContext.save()
+            onDeleted?(deletedID)
             onClose?()
         } catch {
             activeError = .wrapped(code: "DELETE", message: "삭제 실패: \(error.localizedDescription)")

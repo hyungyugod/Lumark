@@ -201,17 +201,20 @@ struct HomeView: View {
 
         case .result(let noteID):
             if let note = resolvedNote(for: noteID) {
-                ResultView(note: note) {
-                    path.removeAll()
-                }
+                ResultView(
+                    note: note,
+                    onClose: { path.removeAll() },
+                    onDeleted: { id in resultsCache.removeValue(forKey: id) }
+                )
             } else {
                 missingJobFallback
             }
 
         case .recentList:
-            RecentNotesView { note in
-                openExistingNote(note)
-            }
+            RecentNotesView(
+                onOpenNote: { note in openExistingNote(note) },
+                onDeleted: { id in resultsCache.removeValue(forKey: id) }
+            )
 
         case .myQuizzes:
             MyQuizzesView { note in

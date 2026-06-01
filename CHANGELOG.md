@@ -2,6 +2,10 @@
 
 ## [Unreleased] — v0.1 (MVP) 작업 중
 
+### Fixed (안정성 폴리시 — 2026-06-01)
+- **삭제된 노트 캐시 정리.** ResultView/RecentNotesView에서 노트 삭제 시 `onDeleted(id)`로 HomeView의 `resultsCache`에서 제거 — 삭제된 SwiftData 객체에 재접근하다 크래시하는 잠재 위험 제거.
+- **SettingsView 강제 언래핑 제거.** `ColorRule.defaults.first(where:)!` → 행에서 실제로 쓰는 `isEnabled` 바인딩으로 대체(불필요한 force-unwrap 삭제).
+
 ### Changed (크레딧 정책 다듬기 — 2026-06-01)
 - **무료 크레딧 100 → 200** (가입 보너스 + 월 충전). 간호학과 시험기간 사용량 고려. top-up 모델 유지(안 쌓임). 적용 마이그레이션 `server/supabase/migrate_credits_200.sql`.
 - **OCR 크레딧 부족 사전 게이트.** Lumark Cloud로 정리본 만들 때 `startProcessing`에서 잔액을 새로고침해 페이지 수보다 적으면 시작 전에 안내(부족분 일부만 처리되고 도중 402로 깨지던 문제 방지). `startProcessing`을 게이트 + `beginJob`으로 분리.

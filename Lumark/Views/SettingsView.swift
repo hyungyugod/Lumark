@@ -158,7 +158,6 @@ struct SettingsView: View {
 
     @ViewBuilder
     private func colorRow(_ color: ColorCategory) -> some View {
-        let rule = store.rule(for: color) ?? ColorRule.defaults.first(where: { $0.color == color })!
         let labelBinding = Binding(
             get: { store.rule(for: color)?.label ?? "" },
             set: { store.setLabel($0, for: color) }
@@ -197,7 +196,7 @@ struct SettingsView: View {
                 .tint(Palette.brown)
         }
         .padding(.vertical, 4)
-        .opacity(rule.isEnabled ? 1.0 : 0.55)
+        .opacity(enabledBinding.wrappedValue ? 1.0 : 0.55)
     }
 
     private func defaultName(_ c: ColorCategory) -> String {

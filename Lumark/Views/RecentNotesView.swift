@@ -14,6 +14,8 @@ struct RecentNotesView: View {
     @Query(sort: \Note.createdAt, order: .reverse) private var notes: [Note]
 
     var onOpenNote: (Note) -> Void
+    /// 노트 삭제 시 그 id를 알려줌 (상위에서 캐시 정리용).
+    var onDeleted: ((UUID) -> Void)? = nil
 
     // 필터/정렬 상태
     @State private var searchText: String = ""
@@ -222,9 +224,11 @@ struct RecentNotesView: View {
     // ResultView도 같은 패턴(errorAlert)으로 통일.
 
     private func delete(_ note: Note) {
+        let deletedID = note.id
         modelContext.delete(note)
         do {
             try modelContext.save()
+            onDeleted?(deletedID)
         } catch {
             activeError = .wrapped(code: "DELETE", message: "삭제 실패: \(error.localizedDescription)")
         }
