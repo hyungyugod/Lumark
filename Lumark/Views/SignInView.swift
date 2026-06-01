@@ -61,6 +61,29 @@ struct SignInView: View {
                     .frame(height: 50)
                     .clipShape(Capsule())
 
+                    // 카카오 로그인 (한국 사용자 편의). 웹 OAuth.
+                    Button {
+                        Task {
+                            await auth.signInWithKakao()
+                            if auth.isSignedIn {
+                                if onContinueAsGuest == nil { onSignedIn?() ?? dismiss() }
+                                else { onSignedIn?() }
+                            }
+                        }
+                    } label: {
+                        HStack(spacing: 8) {
+                            Image(systemName: "message.fill")
+                                .font(.system(size: 16))
+                            Text("카카오로 로그인")
+                                .font(.system(size: 17, weight: .semibold))
+                        }
+                        .foregroundStyle(Color(red: 0.23, green: 0.19, blue: 0.13)) // 카카오 다크 텍스트
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 50)
+                        .background(Capsule().fill(Color(red: 1.0, green: 0.898, blue: 0.0))) // #FEE500
+                    }
+                    .buttonStyle(.plain)
+
                     if let err = auth.errorMessage {
                         Text(err)
                             .font(.system(size: 12))
@@ -83,7 +106,7 @@ struct SignInView: View {
                     Image(systemName: "lock.shield")
                         .font(.system(size: 11))
                         .foregroundStyle(Palette.muted)
-                    Text("Apple 계정으로만 로그인해요. 노트는 기기에 저장되고, 사용량 관리에만 계정을 써요.")
+                    Text("Apple 또는 카카오로 로그인해요. 노트는 기기에 저장되고, 사용량 관리에만 계정을 써요.")
                         .font(.system(size: 11))
                         .foregroundStyle(Palette.subtle)
                         .fixedSize(horizontal: false, vertical: true)
