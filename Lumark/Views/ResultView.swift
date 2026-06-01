@@ -397,7 +397,10 @@ struct ResultView: View {
             } catch let e as QuizError {
                 await MainActor.run {
                     isGeneratingQuiz = false
-                    activeError = .wrapped(code: "QUIZ", message: e.errorDescription ?? "퀴즈 생성 실패")
+                    // 크레딧 부족이면 "CREDITS" 코드로(본인 키 전환 액션 노출).
+                    let code: String
+                    if case .creditsExhausted = e { code = "CREDITS" } else { code = "QUIZ" }
+                    activeError = .wrapped(code: code, message: e.errorDescription ?? "퀴즈 생성 실패")
                 }
             } catch {
                 await MainActor.run {

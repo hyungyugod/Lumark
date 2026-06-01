@@ -188,8 +188,12 @@ final class ProcessingViewModel {
                         perPageSpans.append(spans)
                     } catch let providerError as OCRProviderError {
                         // Vision은 throw 안 함. Gemini 등 외부 엔진의 실패만 여기로 옴.
+                        // 크레딧 부족은 "CREDITS" 코드로(본인 키 전환 액션이 붙도록).
+                        let code: String
+                        if case .creditsExhausted = providerError { code = "CREDITS" }
+                        else { code = "OCR-PROVIDER" }
                         throw LumarkError.wrapped(
-                            code: "OCR-PROVIDER",
+                            code: code,
                             message: providerError.errorDescription ?? "OCR 실패"
                         )
                     }

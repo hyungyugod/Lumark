@@ -161,8 +161,9 @@ extension LumarkError {
             return [.dismiss]
         case .partialSuccess:
             return [.viewResult]
-        case .wrapped:
-            return [.dismiss]
+        case .wrapped(let code, _):
+            // 크레딧 부족이면 본인 키 전환 탈출구 제공.
+            return code == "CREDITS" ? [.switchToOwnKey, .dismiss] : [.dismiss]
         }
     }
 
@@ -193,6 +194,7 @@ enum ErrorAction: Equatable, Sendable {
     case cancel
     case dismiss
     case viewResult
+    case switchToOwnKey      // OCR 엔진을 "내 Gemini 키"로 전환 (크레딧 부족 탈출구)
 
     nonisolated var label: String {
         switch self {
@@ -204,12 +206,13 @@ enum ErrorAction: Equatable, Sendable {
         case .cancel:              return "취소"
         case .dismiss:             return "확인"
         case .viewResult:          return "결과 보기"
+        case .switchToOwnKey:      return "내 Gemini 키로 전환"
         }
     }
 
     nonisolated var isPrimary: Bool {
         switch self {
-        case .retry, .proceed, .viewResult, .openSystemSettings: return true
+        case .retry, .proceed, .viewResult, .openSystemSettings, .switchToOwnKey: return true
         default: return false
         }
     }

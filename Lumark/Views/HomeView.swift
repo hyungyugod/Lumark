@@ -780,6 +780,9 @@ struct HomeView: View {
             break
         case .viewResult:
             break
+        case .switchToOwnKey:
+            // 엔진 전환은 errorAlert 모디파이어가 공통 처리. 여기선 추가 동작 없음.
+            break
         }
     }
 }

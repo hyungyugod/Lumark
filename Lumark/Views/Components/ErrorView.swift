@@ -213,6 +213,10 @@ extension View {
                     action.label,
                     role: action == .cancel ? .cancel : nil
                 ) {
+                    // 본인 키 전환은 전역 설정 변경이라 모든 호출부에서 공통 처리.
+                    if action == .switchToOwnKey {
+                        OCRPreferences.shared.engine = .geminiFlash
+                    }
                     onAction?(action)
                     error.wrappedValue = nil
                 }
