@@ -188,14 +188,17 @@ final class ProcessingViewModel {
                         perPageSpans.append(spans)
                     } catch let providerError as OCRProviderError {
                         // Vision은 throw 안 함. Gemini 등 외부 엔진의 실패만 여기로 옴.
-                        // 크레딧 부족은 "CREDITS" 코드로(본인 키 전환 액션이 붙도록).
-                        let code: String
-                        if case .creditsExhausted = providerError { code = "CREDITS" }
-                        else { code = "OCR-PROVIDER" }
-                        throw LumarkError.wrapped(
-                            code: code,
-                            message: providerError.errorDescription ?? "OCR 실패"
-                        )
+                        switch providerError {
+                        case .creditsExhausted:
+                            // 더 진행해도 매 페이지 402 — 중단(본인 키 전환 액션 노출).
+                            throw LumarkError.wrapped(code: "CREDITS", message: providerError.errorDescription ?? "크레딧이 부족해요.")
+                        case .notSignedIn:
+                            throw LumarkError.wrapped(code: "LOGIN", message: providerError.errorDescription ?? "로그인이 필요해요.")
+                        default:
+                            // 네트워크/API 일시 오류 — 이 페이지만 건너뛰고 계속(spec §8 부분 성공).
+                            // 앞서 성공한 페이지의 크레딧·결과는 보존됨.
+                            perPageSpans.append([])
+                        }
                     }
                 }
                 persistProgress()
