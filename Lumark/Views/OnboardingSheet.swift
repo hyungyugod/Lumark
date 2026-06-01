@@ -145,6 +145,11 @@ struct OnboardingSheet: View {
 
 extension UserDefaults {
     var hasOnboarded: Bool { bool(forKey: "lumark.onboarded") }
+    /// "로그인 없이 둘러보기"를 한 번이라도 골랐는지. 이후 콜드 런치에선 게이트 생략.
+    var didChooseGuest: Bool {
+        get { bool(forKey: "lumark.didChooseGuest") }
+        set { set(newValue, forKey: "lumark.didChooseGuest") }
+    }
 }
 
 #Preview {

@@ -44,16 +44,20 @@ struct LumarkApp: App {
 }
 
 /// 앱 진입 게이트 — 로그인 안 했고 게스트 선택도 안 했으면 로그인 화면을 먼저 보여준다.
-/// "로그인 없이 둘러보기"를 누르면 그 세션 동안 게스트로 진입(다음 콜드 런치 때 다시 게이트).
+/// "로그인 없이 둘러보기"를 한 번 누르면 기억 → 이후 콜드 런치엔 바로 진입(매번 안 막음).
+/// 로그인하면 당연히 게이트 없음.
 private struct RootView: View {
     @State private var auth = AuthManager.shared
-    @State private var continuedAsGuest = false
+    @State private var continuedAsGuest = UserDefaults.standard.didChooseGuest
 
     var body: some View {
         if auth.isSignedIn || continuedAsGuest {
             HomeView()
         } else {
-            SignInView(onContinueAsGuest: { continuedAsGuest = true })
+            SignInView(onContinueAsGuest: {
+                UserDefaults.standard.didChooseGuest = true
+                continuedAsGuest = true
+            })
         }
     }
 }

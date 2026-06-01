@@ -37,6 +37,10 @@ struct HomeView: View {
     @State private var showingSettings = false
     @State private var showingOnboarding = !UserDefaults.standard.hasOnboarded
     @State private var showingSignIn = false
+    // 미로그인 상태에서 Lumark Cloud 변환을 시도하면, 로그인/오프라인/취소를 묻고
+    // 잡 파라미터를 잠시 보관했다 선택에 따라 이어간다.
+    @State private var showingCloudChoice = false
+    @State private var pendingCloudJob: (filename: String, totalPages: Int, source: JobSource, inboxID: UUID?)?
 
     // 업로드 소스 선택
     @State private var showingUploadMenu = false
@@ -107,8 +111,29 @@ struct HomeView: View {
             .sheet(isPresented: $showingOnboarding) {
                 OnboardingSheet { showingOnboarding = false }
             }
-            .sheet(isPresented: $showingSignIn) {
-                SignInView()
+            .sheet(isPresented: $showingSignIn, onDismiss: {
+                // 로그인 안 하고 닫았으면 보관한 잡 정리.
+                if !auth.isSignedIn, let id = pendingCloudJob?.inboxID { AppGroup.cleanup(id: id) }
+                if !auth.isSignedIn { pendingCloudJob = nil }
+            }) {
+                SignInView(onSignedIn: {
+                    showingSignIn = false
+                    resumePendingCloudJob()
+                })
+            }
+            .confirmationDialog(
+                "Lumark Cloud는 로그인이 필요해요",
+                isPresented: $showingCloudChoice,
+                titleVisibility: .visible
+            ) {
+                Button("Apple로 로그인하고 만들기") { showingSignIn = true }
+                Button("오프라인으로 변환 (로그인 없이)") { convertOfflineFromPending() }
+                Button("취소", role: .cancel) {
+                    if let id = pendingCloudJob?.inboxID { AppGroup.cleanup(id: id) }
+                    pendingCloudJob = nil
+                }
+            } message: {
+                Text("로그인하면 매달 무료 크레딧으로 더 정확하게 변환해요. 또는 로그인 없이 이 기기에서 바로 변환할 수 있어요(Apple Vision · 오프라인).")
             }
             .confirmationDialog("업로드", isPresented: $showingUploadMenu, titleVisibility: .visible) {
                 Button("사진 라이브러리에서") { showingPhotosPicker = true }
@@ -599,10 +624,10 @@ struct HomeView: View {
             beginJob(filename: filename, totalPages: totalPages, source: source, inboxID: inboxID)
             return
         }
-        // 로그인 게이트 — 페이지 렌더 전에.
+        // 로그인 게이트 — 페이지 렌더 전에. 미로그인이면 로그인/오프라인/취소를 묻는다.
         guard AuthManager.shared.isSignedIn else {
-            if let inboxID { AppGroup.cleanup(id: inboxID) }
-            showingSignIn = true
+            pendingCloudJob = (filename, totalPages, source, inboxID)
+            showingCloudChoice = true
             return
         }
         // 크레딧 사전 체크 — 잔액을 새로고침한 뒤 페이지 수만큼 있는지 확인.
@@ -619,6 +644,21 @@ struct HomeView: View {
                 beginJob(filename: filename, totalPages: totalPages, source: source, inboxID: inboxID)
             }
         }
+    }
+
+    /// "오프라인으로 변환" 선택 — 엔진을 Apple Vision으로 바꾸고 보관한 잡을 바로 진행.
+    private func convertOfflineFromPending() {
+        guard let j = pendingCloudJob else { return }
+        pendingCloudJob = nil
+        ocrPrefs.engine = .appleVision
+        beginJob(filename: j.filename, totalPages: j.totalPages, source: j.source, inboxID: j.inboxID)
+    }
+
+    /// 로그인 성공 후 보관한 Cloud 잡을 이어서 시작(이번엔 게이트 통과).
+    private func resumePendingCloudJob() {
+        guard auth.isSignedIn, let j = pendingCloudJob else { return }
+        pendingCloudJob = nil
+        startProcessing(filename: j.filename, totalPages: j.totalPages, source: j.source, inboxID: j.inboxID)
     }
 
     /// 실제 잡 등록 + 영속화 + 처리 화면 진입. (게이트는 startProcessing에서 끝냄)

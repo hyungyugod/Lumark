@@ -2,6 +2,10 @@
 
 ## [Unreleased] — v0.1 (MVP) 작업 중
 
+### Changed (게스트 흐름 다듬기 — 2026-06-01)
+- **게스트 함정 해소.** 미로그인 상태로 Lumark Cloud 변환을 시도하면 로그인창만 띄우던 걸 → "Apple로 로그인 / 오프라인으로 변환(Apple Vision·로그인 없이) / 취소" 3지선다로. 게스트도 로그인 없이 바로 변환 가능(오프라인 엔진 자동 전환). 로그인 선택 시 로그인 후 그 잡을 이어서 진행.
+- **런치 게이트 매번 안 막음.** "로그인 없이 둘러보기"를 한 번 고르면 기억(`didChooseGuest`) → 이후 콜드 런치엔 게이트 생략. 로그인하면 당연히 없음.
+
 ### Changed (로그인 게이트 + 계정 관리 — 2026-06-01)
 - **앱 첫 화면 = 로그인 게이트.** `RootView`가 미로그인이면 `HomeView` 대신 로그인 화면을 먼저 보여줌 — "Sign in with Apple" 또는 "로그인 없이 둘러보기"(게스트) 중 택1해야 진입. 게스트는 그 세션만(다음 콜드 런치 때 다시 게이트). `SignInView`에 게이트/시트 두 모드.
 - **계정 삭제(self-service).** 설정 → 계정에 "계정 삭제"(확인 알림). `delete_own_account()` SECURITY DEFINER RPC가 `auth.users` 삭제 → profiles·credit_ledger CASCADE. 적용 마이그레이션 `server/supabase/migrate_account_deletion.sql`. 삭제 후 자동 로그아웃 → 게이트로.
