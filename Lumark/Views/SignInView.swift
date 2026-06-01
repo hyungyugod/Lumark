@@ -16,6 +16,8 @@ struct SignInView: View {
 
     /// 로그인 성공 시 호출(시트 닫기 등). nil이면 자동 dismiss.
     var onSignedIn: (() -> Void)?
+    /// 설정되면 "런치 게이트" 모드 — 건너뛰기가 게스트 진입(dismiss 대신 이걸 호출).
+    var onContinueAsGuest: (() -> Void)?
 
     var body: some View {
         ZStack {
@@ -49,7 +51,9 @@ struct SignInView: View {
                         Task {
                             await auth.completeAppleSignIn(result)
                             if auth.isSignedIn {
-                                onSignedIn?() ?? dismiss()
+                                // 게이트 모드: 루트가 auth 상태를 보고 자동 전환. 시트 모드: 닫기.
+                                if onContinueAsGuest == nil { onSignedIn?() ?? dismiss() }
+                                else { onSignedIn?() }
                             }
                         }
                     }
@@ -65,9 +69,9 @@ struct SignInView: View {
                     }
 
                     Button {
-                        dismiss()
+                        if let onContinueAsGuest { onContinueAsGuest() } else { dismiss() }
                     } label: {
-                        Text("나중에 — 본인 키로 쓸게요")
+                        Text(onContinueAsGuest != nil ? "로그인 없이 둘러보기" : "나중에 — 본인 키로 쓸게요")
                             .font(.system(size: 13.5))
                             .foregroundStyle(Palette.brown)
                     }

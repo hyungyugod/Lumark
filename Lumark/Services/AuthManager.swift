@@ -122,6 +122,21 @@ final class AuthManager {
     func signOut() async {
         try? await Supa.client.auth.signOut()
         session = nil
+        credits = nil
+    }
+
+    /// 계정 영구 삭제 — 서버 RPC로 auth.users 삭제(프로필·원장 CASCADE) 후 로그아웃.
+    /// 성공 시 true. 실패하면 errorMessage 세팅.
+    func deleteAccount() async -> Bool {
+        guard isSignedIn else { return false }
+        do {
+            try await Supa.client.rpc("delete_own_account").execute()
+            await signOut()
+            return true
+        } catch {
+            errorMessage = "계정 삭제에 실패했어요: \(error.localizedDescription)"
+            return false
+        }
     }
 
     // MARK: - nonce helpers

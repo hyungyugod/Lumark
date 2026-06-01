@@ -2,6 +2,11 @@
 
 ## [Unreleased] — v0.1 (MVP) 작업 중
 
+### Changed (로그인 게이트 + 계정 관리 — 2026-06-01)
+- **앱 첫 화면 = 로그인 게이트.** `RootView`가 미로그인이면 `HomeView` 대신 로그인 화면을 먼저 보여줌 — "Sign in with Apple" 또는 "로그인 없이 둘러보기"(게스트) 중 택1해야 진입. 게스트는 그 세션만(다음 콜드 런치 때 다시 게이트). `SignInView`에 게이트/시트 두 모드.
+- **계정 삭제(self-service).** 설정 → 계정에 "계정 삭제"(확인 알림). `delete_own_account()` SECURITY DEFINER RPC가 `auth.users` 삭제 → profiles·credit_ledger CASCADE. 적용 마이그레이션 `server/supabase/migrate_account_deletion.sql`. 삭제 후 자동 로그아웃 → 게이트로.
+- **로그아웃 정리.** 로그아웃을 일반(brown) 버튼으로, 계정 삭제만 destructive. 로그아웃 시 크레딧 캐시도 비움.
+
 ### Added (접근성 + 부분 실패 안내 — 2026-06-01)
 - **OCR 부분 실패 안내.** 일부 페이지가 일시 오류로 건너뛰어지면 결과 화면 진입 시 "N페이지는 못 읽었어요. 다시 변환하면 채워질 수 있어요" 토스트(조금 길게). ProcessingViewModel `failedPageCount` → onFinish → ResultView `initialNotice`.
 - **VoiceOver 라벨.** 홈 크레딧 펠("남은 크레딧 N개"), 퀴즈 비용 버튼("퀴즈 만들기, 2 크레딧 사용"), 플래시카드("질문/정답: …" + 뒤집기 힌트), 내 퀴즈 행("제목, 카드 N개").

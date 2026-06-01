@@ -19,6 +19,7 @@ struct SettingsView: View {
     @State private var showingGeminiKeySaved = false
     @State private var showingKeyGuide = false
     @State private var showingSignIn = false
+    @State private var showingDeleteAccount = false
     @Environment(\.dismiss) private var dismiss
     @FocusState private var focusedColor: ColorCategory?
     @FocusState private var geminiKeyFocused: Bool
@@ -53,6 +54,16 @@ struct SettingsView: View {
             }
             .sheet(isPresented: $showingSignIn) {
                 SignInView()
+            }
+            .alert("계정을 삭제할까요?", isPresented: $showingDeleteAccount) {
+                Button("삭제", role: .destructive) {
+                    Task {
+                        if await auth.deleteAccount() { dismiss() }
+                    }
+                }
+                Button("취소", role: .cancel) {}
+            } message: {
+                Text("계정과 크레딧이 영구 삭제돼요. 되돌릴 수 없어요. (기기에 저장된 노트는 그대로 남아요.)")
             }
             .task {
                 if auth.isSignedIn { await auth.refreshCredits() }
@@ -99,10 +110,18 @@ struct SettingsView: View {
                     .font(.system(size: 11.5))
                     .foregroundStyle(Palette.subtle)
 
-                Button(role: .destructive) {
+                Button {
                     Task { await auth.signOut() }
                 } label: {
                     Text("로그아웃")
+                        .font(.system(size: 14))
+                        .foregroundStyle(Palette.brown)
+                }
+
+                Button(role: .destructive) {
+                    showingDeleteAccount = true
+                } label: {
+                    Text("계정 삭제")
                         .font(.system(size: 14))
                 }
             } else {
