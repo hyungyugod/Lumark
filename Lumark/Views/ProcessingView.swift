@@ -16,6 +16,8 @@ import SwiftUI
 
 struct ProcessingView: View {
     @State private var vm: ProcessingViewModel
+    /// onFinish/onCancel을 정확히 한 번만 발화 — 취소 탭과 완료가 겹치는 경합 방지.
+    @State private var handled = false
     var filename: String
     var jobID: UUID?
     var onCancel: () -> Void
@@ -88,6 +90,8 @@ struct ProcessingView: View {
 
                 // 취소
                 Button {
+                    guard !handled else { return }
+                    handled = true
                     vm.cancel()
                     onCancel()
                 } label: {
@@ -114,7 +118,8 @@ struct ProcessingView: View {
             vm.start()
         }
         .onChange(of: vm.phase) { _, newPhase in
-            if newPhase == .finished, let note = vm.resultNote {
+            if newPhase == .finished, let note = vm.resultNote, !handled {
+                handled = true
                 onFinish(note)
             }
         }
@@ -124,6 +129,8 @@ struct ProcessingView: View {
         )) { _ in
             // 어떤 액션이든 — 현재 화면을 닫는다. 부분 성공 같은 케이스는
             // 향후 .partialSuccess일 때만 onFinish로 분기.
+            guard !handled else { return }
+            handled = true
             onCancel()
         }
     }

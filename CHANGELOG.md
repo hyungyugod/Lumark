@@ -6,6 +6,7 @@
 - **OCR 페이지 부분 실패를 견딤 (spec §8).** 여러 페이지 변환 중 한 페이지가 네트워크/API 일시 오류로 실패해도 노트 전체를 버리지 않고 그 페이지만 건너뜀 — 앞서 성공한 페이지의 결과·크레딧이 보존됨. 크레딧 부족/로그인 같은 "더 진행 불가" 상태만 중단(매 페이지 402가 될 것이므로).
 - **삭제된 노트 캐시 정리.** ResultView/RecentNotesView에서 노트 삭제 시 `onDeleted(id)`로 HomeView의 `resultsCache`에서 제거 — 삭제된 SwiftData 객체에 재접근하다 크래시하는 잠재 위험 제거.
 - **SettingsView 강제 언래핑 제거.** `ColorRule.defaults.first(where:)!` → 행에서 실제로 쓰는 `isEnabled` 바인딩으로 대체(불필요한 force-unwrap 삭제).
+- **처리 화면 완료/취소 경합 가드.** ProcessingView가 `handled` 플래그로 `onFinish`·`onCancel`을 정확히 한 번만 발화 — 완료 순간 취소를 탭하면 둘 다 불려 네비게이션이 꼬이던 좁은 경합 제거.
 
 ### Changed (크레딧 정책 다듬기 — 2026-06-01)
 - **무료 크레딧 100 → 200** (가입 보너스 + 월 충전). 간호학과 시험기간 사용량 고려. top-up 모델 유지(안 쌓임). 적용 마이그레이션 `server/supabase/migrate_credits_200.sql`.
