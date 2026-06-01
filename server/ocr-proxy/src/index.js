@@ -122,17 +122,23 @@ async function bump(kv, key, by) {
   return next;
 }
 
-/** 전역 일일 backstop. 비정상 폭주 안전망(계정 크레딧과 별개). 초과면 429. */
-async function checkGlobalCap(env) {
+/** 전역 일일 backstop 체크(읽기 전용). 초과면 429 Response, 아니면 null.
+ *  카운트 증가는 실제 과금 동작 성공 시 bumpGlobal로만 — 빈 요청 spam으로
+ *  전역 한도를 소진(타 사용자 DoS)하지 못하게. */
+async function globalCapExceeded(env) {
   const cap = parseInt(env.GLOBAL_DAILY || "0", 10);
   if (!cap) return null;
-  const gKey = `g:${todayKey()}`;
-  const used = parseInt((await env.RATE.get(gKey)) || "0", 10);
+  const used = parseInt((await env.RATE.get(`g:${todayKey()}`)) || "0", 10);
   if (used >= cap) {
     return json(429, { error: "서비스 전체 일일 한도에 도달했어요. 잠시 후 다시 시도해주세요." });
   }
-  await bump(env.RATE, gKey, 1);
   return null;
+}
+
+/** 과금 동작 1건 카운트(크레딧 차감 성공 후 호출). */
+async function bumpGlobal(env) {
+  if (!parseInt(env.GLOBAL_DAILY || "0", 10)) return;
+  await bump(env.RATE, `g:${todayKey()}`, 1);
 }
 
 // ── 계정 + 크레딧 (Supabase) ────────────────────────────────
@@ -242,10 +248,11 @@ async function handleOCR(env, userId, body) {
   const cost = costOf(env, "ocr");
   let balance;
   try { balance = await spendCredits(env, userId, cost, "ocr", null); }
-  catch (e) { return json(502, { error: "크레딧 처리 실패: " + e.message }); }
+  catch (e) { console.log("spend ocr failed:", e.message); return json(502, { error: "크레딧 처리에 문제가 생겼어요. 잠시 후 다시 시도해주세요." }); }
   if (balance === -1) {
     return json(402, { error: "크레딧이 부족해요. 내일 충전되거나, 설정에서 내 Gemini 키로 쓸 수 있어요.", needed: cost });
   }
+  await bumpGlobal(env);   // 과금 동작 1건 카운트
 
   const parts = [
     { inline_data: { mime_type: "image/jpeg", data: imageBase64 } },
@@ -274,10 +281,11 @@ async function handleQuiz(env, userId, body) {
   const cost = costOf(env, "quiz");
   let balance;
   try { balance = await spendCredits(env, userId, cost, "quiz", null); }
-  catch (e) { return json(502, { error: "크레딧 처리 실패: " + e.message }); }
+  catch (e) { console.log("spend quiz failed:", e.message); return json(502, { error: "크레딧 처리에 문제가 생겼어요. 잠시 후 다시 시도해주세요." }); }
   if (balance === -1) {
     return json(402, { error: "크레딧이 부족해요. 내일 충전되거나, 설정에서 내 Gemini 키로 쓸 수 있어요.", needed: cost });
   }
+  await bumpGlobal(env);   // 과금 동작 1건 카운트
 
   const parts = [{ text: quizPrompt(count) + "\n\n---\n\n" + text }];
   const res = await callGemini(env, parts, QUIZ_SCHEMA, 4096);
@@ -314,8 +322,8 @@ export default {
     const auth = await authUser(env, request);
     if (auth.error) return auth.error;
 
-    // 전역 일일 backstop(안전망). GLOBAL_DAILY 설정 시에만.
-    const cap = await checkGlobalCap(env);
+    // 전역 일일 backstop(안전망). 읽기 전용 — 실제 카운트는 차감 성공 후.
+    const cap = await globalCapExceeded(env);
     if (cap) return cap;
 
     let body;
