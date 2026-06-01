@@ -1,15 +1,15 @@
 -- Lumark — Supabase schema (accounts + credits, Path A)
 --
 -- 실행: Supabase 대시보드 → SQL Editor에 통째로 붙여넣고 Run.
--- 확정 스펙: 가입 보너스 100 + 매월 충전 200 (보너스를 낮춰 다계정 농사 억제) /
+-- 확정 스펙: 가입 보너스 200 + 매월 충전 100 (넉넉한 첫인상 + 지속가능한 월 한도) /
 --           OCR 1·페이지, 퀴즈 2·회 / 본인 키 = 무제한(여기 안 거침) / 유료 없음.
 -- 크레딧 변경은 전부 service_role(Worker)이 호출하는 RPC로만. 클라이언트는 읽기만.
 
 -- ── 1) profiles: auth 유저당 1행, 크레딧 잔액 보관 ──────────────────────────
 create table if not exists public.profiles (
   id             uuid primary key references auth.users(id) on delete cascade,
-  credits        integer     not null default 100,   -- 가입 보너스
-  monthly_grant  integer     not null default 200,   -- 매월 충전 목표
+  credits        integer     not null default 200,   -- 가입 보너스
+  monthly_grant  integer     not null default 100,   -- 매월 충전 목표
   last_refill_at timestamptz not null default now(),
   created_at     timestamptz not null default now()
 );
@@ -43,9 +43,9 @@ create or replace function public.handle_new_user()
 returns trigger
 language plpgsql security definer set search_path = public as $$
 begin
-  insert into public.profiles (id, credits) values (new.id, 100);   -- 가입 보너스 100
+  insert into public.profiles (id, credits) values (new.id, 200);   -- 가입 보너스 200
   insert into public.credit_ledger (user_id, delta, reason)
-       values (new.id, 100, 'signup');
+       values (new.id, 200, 'signup');
   return new;
 end $$;
 
