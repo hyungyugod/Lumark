@@ -8,6 +8,8 @@
 - **iOS 로그인** — supabase-swift SDK. `Supa`(클라이언트) / `AuthManager`(Sign in with Apple, nonce) / `SignInView` / 설정 "계정" 섹션. `SupabaseConfig`에 URL+publishable 키(공개).
 - **Worker 크레딧 연동** (`server/ocr-proxy`) — Supabase 사용자 JWT를 `/auth/v1/user`로 검증 → `spend_credits` 예약 차감(부족 시 402) → Gemini 실패 시 `refund_credits`. 기기당 한도/X-Device-ID 제거(계정 크레딧이 대체), 전역 일일 backstop만 유지.
 - **앱 크레딧 연동** — Proxy OCR/Quiz provider가 `Authorization: Bearer <JWT>` 전송(만료 시 SDK 자동 갱신), 401→로그인 안내·402→크레딧 부족 안내로 매핑. 응답의 `credits`로 잔액 즉시 갱신. 설정 "계정"에 잔액 표시. 미로그인 시 퀴즈는 `support()` 사전 체크로 깔끔히 안내.
+- **OCR 로그인 사전 게이트** — Lumark Cloud 엔진인데 미로그인이면 `startProcessing`에서 페이지 렌더 전에 로그인 시트를 띄움(렌더 후 에러 대신). 모든 진입(사진/파일/카메라/공유)의 단일 길목.
+- **Sign in with Apple capability 활성화** — `Lumark.entitlements`(`com.apple.developer.applesignin`) + 프로젝트 서명 연결(유료 Apple Developer Program 등록 후).
 - ⚠️ **아직 비활성:** Apple 로그인은 유료 Apple Developer Program 필요(등록 중). Worker 신버전 + 이 앱 변경(JWT 전송)은 **함께** 배포해야 함(따로 나가면 기존 Lumark Cloud가 깨짐) — 로그인 작동 확인 후 동시 롤아웃.
 
 ### Changed (퀴즈 학습/안내 다듬기 — 2026-05-28)

@@ -32,6 +32,7 @@ struct HomeView: View {
     // 시트
     @State private var showingSettings = false
     @State private var showingOnboarding = !UserDefaults.standard.hasOnboarded
+    @State private var showingSignIn = false
 
     // 업로드 소스 선택
     @State private var showingUploadMenu = false
@@ -101,6 +102,9 @@ struct HomeView: View {
             }
             .sheet(isPresented: $showingOnboarding) {
                 OnboardingSheet { showingOnboarding = false }
+            }
+            .sheet(isPresented: $showingSignIn) {
+                SignInView()
             }
             .confirmationDialog("업로드", isPresented: $showingUploadMenu, titleVisibility: .visible) {
                 Button("사진 라이브러리에서") { showingPhotosPicker = true }
@@ -544,6 +548,14 @@ struct HomeView: View {
         source: JobSource,
         inboxID: UUID? = nil
     ) {
+        // Lumark Cloud는 로그인 필요 — 페이지 렌더 전에 게이트(나중에 에러 대신 미리 안내).
+        if OCRPreferences.shared.engine == .lumarkCloud && !AuthManager.shared.isSignedIn {
+            // 공유 inbox로 들어온 잡이면 정리.
+            if let inboxID { AppGroup.cleanup(id: inboxID) }
+            showingSignIn = true
+            return
+        }
+
         let id = UUID()
         let job = PendingJob(
             id: id,
