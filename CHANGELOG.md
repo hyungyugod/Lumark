@@ -6,6 +6,9 @@
 - **노트 기기 저장 경고.** 설정 정보에 "노트는 이 기기에만 저장 — 앱 삭제/폰 교체 시 사라짐, 자동 백업 없음. 중요한 건 공유/PDF로 내보내두세요" 안내(아직 클라우드 백업 미구현이라 명시).
 - **큰 글씨(Dynamic Type) 본문 대응.** 노트 본문(제목·섹션·글머리표)과 플래시카드 질문/정답을 `@ScaledMetric`으로 전환 — "큰 텍스트" 접근성 설정에 따라 읽기 영역이 커짐. (나머지 chrome은 추후 단계.)
 
+### Changed (가입 보너스 하향 — 2026-06-01)
+- **가입 보너스 200 → 100** (월 충전 200은 유지). Apple+카카오 다중 provider로 한 사람이 두 계정 = 무료 크레딧 2배 받는 농사를 억제. 월 한도는 그대로라 실사용엔 영향 적음. 적용 마이그레이션 `server/supabase/migrate_credits_bonus.sql`.
+
 ### Added (카카오 로그인 — 2026-06-01)
 - **카카오 로그인** (한국 사용자 편의). 로그인 화면에 "카카오로 로그인"(노란 #FEE500) 버튼 추가. supabase-swift `signInWithOAuth(.kakao)`가 ASWebAuthenticationSession으로 처리, 콜백 스킴 `lumark://login-callback`(앱에 이미 등록). 로그인은 무료(카카오 API 비용 없음). Apple 로그인이 있어 App Store 규칙도 충족. 설정 가이드 `server/supabase/kakao-setup.md`.
 - ⚠️ **활성화엔 설정 필요:** 카카오 개발자 앱 등록 + Supabase Kakao provider + Redirect URLs 허용목록. 가이드 참고.
