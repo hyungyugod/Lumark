@@ -23,6 +23,8 @@ struct HomeView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(AppRouter.self) private var router
     @Query(sort: \Note.createdAt, order: .reverse) private var notes: [Note]
+    @State private var auth = AuthManager.shared
+    @State private var ocrPrefs = OCRPreferences.shared
 
     // 네비게이션
     @State private var path: [HomeRoute] = []
@@ -164,6 +166,10 @@ struct HomeView: View {
                 // 30분 이상 묵은 작업은 정리, 재개 가능한 작업 검사
                 JobStateStore.shared.purgeStale()
                 checkResumableJob()
+                // 크레딧 잔액 펠 채우기 (Lumark Cloud + 로그인 시)
+                if ocrPrefs.engine == .lumarkCloud, auth.isSignedIn {
+                    await auth.refreshCredits()
+                }
             }
         }
     }
@@ -259,6 +265,8 @@ struct HomeView: View {
 
             Spacer()
 
+            creditPill
+
             Button {
                 showingSettings = true
             } label: {
@@ -267,6 +275,30 @@ struct HomeView: View {
                     .foregroundStyle(Palette.ink2)
                     .frame(width: 40, height: 40)
             }
+        }
+    }
+
+    /// 크레딧 잔액 펠 — Lumark Cloud 엔진 + 로그인 + 잔액 조회됨일 때만. 탭하면 설정.
+    @ViewBuilder
+    private var creditPill: some View {
+        if ocrPrefs.engine == .lumarkCloud, auth.isSignedIn, let c = auth.credits {
+            Button {
+                showingSettings = true
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: "creditcard")
+                        .font(.system(size: 11))
+                    Text("\(c)")
+                        .font(.system(size: 13, weight: .semibold))
+                }
+                .foregroundStyle(Palette.brown)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(Capsule().fill(Palette.Highlight.yellowBG))
+                .overlay(Capsule().strokeBorder(Palette.Highlight.yellowEdge, lineWidth: 1))
+            }
+            .buttonStyle(.plain)
+            .padding(.top, 6)
         }
     }
 

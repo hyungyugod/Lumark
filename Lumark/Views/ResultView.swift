@@ -112,6 +112,7 @@ struct ResultView: View {
                 onExportPDF: exportPDF,
                 quizSystemImage: note.flashcards.isEmpty ? "sparkles" : "rectangle.stack.fill",
                 quizLabel: note.flashcards.isEmpty ? "퀴즈 만들기" : "퀴즈 보기",
+                quizCost: quizCostBadge,
                 onQuiz: {
                     if note.flashcards.isEmpty { generateQuiz() } else { showingStudy = true }
                 }
@@ -336,6 +337,13 @@ struct ResultView: View {
 
     private var currentDoc: MarkdownDocument {
         MarkdownDocument.from(note)
+    }
+
+    /// 퀴즈 버튼에 띄울 크레딧 비용. 만들기 모드 + Lumark Cloud일 때만 (본인 키=무제한이면 숨김).
+    /// 값 2는 Worker COST_QUIZ 기본값과 맞춤.
+    private var quizCostBadge: Int? {
+        guard note.flashcards.isEmpty else { return nil }
+        return OCRPreferences.shared.engine == .lumarkCloud ? 2 : nil
     }
 
     /// 정리된 노트 텍스트로 Q&A 카드 생성 → 저장 → 학습 화면.
