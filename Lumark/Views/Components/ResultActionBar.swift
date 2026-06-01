@@ -73,6 +73,8 @@ struct ResultActionBar: View {
                     .padding(4)
                 }
             }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(cost.map { "\(label), \($0) 크레딧 사용" } ?? label)
         }
         .buttonStyle(.plain)
     }

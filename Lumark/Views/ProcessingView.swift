@@ -21,7 +21,8 @@ struct ProcessingView: View {
     var filename: String
     var jobID: UUID?
     var onCancel: () -> Void
-    var onFinish: (Note) -> Void
+    /// (결과 노트, 일시 오류로 건너뛴 페이지 수)
+    var onFinish: (Note, Int) -> Void
 
     init(
         totalPages: Int,
@@ -29,7 +30,7 @@ struct ProcessingView: View {
         jobID: UUID? = nil,
         source: JobSource? = nil,
         onCancel: @escaping () -> Void,
-        onFinish: @escaping (Note) -> Void
+        onFinish: @escaping (Note, Int) -> Void
     ) {
         // 재개 가능한 잡이면 마지막 진행 상태를 복원해 vm에 주입.
         let resume = jobID.flatMap { id in
@@ -120,7 +121,7 @@ struct ProcessingView: View {
         .onChange(of: vm.phase) { _, newPhase in
             if newPhase == .finished, let note = vm.resultNote, !handled {
                 handled = true
-                onFinish(note)
+                onFinish(note, vm.failedPageCount)
             }
         }
         .errorAlert(error: Binding(
@@ -249,6 +250,6 @@ struct ProcessingView: View {
         totalPages: 4,
         filename: "항생제정리.pdf",
         onCancel: {},
-        onFinish: { _ in }
+        onFinish: { _, _ in }
     )
 }

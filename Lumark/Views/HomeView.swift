@@ -30,6 +30,8 @@ struct HomeView: View {
     @State private var path: [HomeRoute] = []
     @State private var jobs: [UUID: PendingJob] = [:]
     @State private var resultsCache: [UUID: Note] = [:]
+    /// 방금 만든 노트에 대한 1회성 안내(예: 부분 실패). noteID로 ResultView에 전달.
+    @State private var pendingNotice: [UUID: String] = [:]
 
     // 시트
     @State private var showingSettings = false
@@ -190,9 +192,9 @@ struct HomeView: View {
                         finalizeJob(jobID, success: false)
                         path.removeAll()
                     },
-                    onFinish: { note in
+                    onFinish: { note, failedPages in
                         finalizeJob(jobID, success: true)
-                        openFreshResult(note)
+                        openFreshResult(note, failedPages: failedPages)
                     }
                 )
             } else {
@@ -204,7 +206,11 @@ struct HomeView: View {
                 ResultView(
                     note: note,
                     onClose: { path.removeAll() },
-                    onDeleted: { id in resultsCache.removeValue(forKey: id) }
+                    onDeleted: { id in
+                        resultsCache.removeValue(forKey: id)
+                        pendingNotice.removeValue(forKey: id)
+                    },
+                    initialNotice: pendingNotice[noteID]
                 )
             } else {
                 missingJobFallback
@@ -302,6 +308,8 @@ struct HomeView: View {
             }
             .buttonStyle(.plain)
             .padding(.top, 6)
+            .accessibilityLabel("남은 크레딧 \(c)개")
+            .accessibilityHint("탭하면 계정 설정")
         }
     }
 
@@ -389,8 +397,11 @@ struct HomeView: View {
     /// 새로 변환된 노트를 결과 화면에서 보여준다.
     /// 처리 중인 노트가 path에 있을 때 호출 — path를 통째로 replace해서
     /// back 누르면 홈으로 가게 함.
-    private func openFreshResult(_ note: Note) {
+    private func openFreshResult(_ note: Note, failedPages: Int = 0) {
         resultsCache[note.id] = note
+        if failedPages > 0 {
+            pendingNotice[note.id] = "\(failedPages)페이지는 일시적인 오류로 못 읽었어요. 다시 변환하면 채워질 수 있어요."
+        }
         path = [.result(noteID: note.id)]
     }
 

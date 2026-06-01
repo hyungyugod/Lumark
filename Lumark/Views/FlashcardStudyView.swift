@@ -206,6 +206,9 @@ private struct FlipCard: View {
                     }
                     UISelectionFeedbackGenerator().selectionChanged()
                 }
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(showAnswer ? "정답: \(card.answer)" : "질문: \(card.question)")
+                .accessibilityHint("두 번 탭하면 \(showAnswer ? "질문" : "정답")을 봐요")
 
             markRow
                 .frame(height: 48)

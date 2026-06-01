@@ -83,8 +83,12 @@ enum MarkdownExporter {
         case .commonMark:
             return text
         case .obsidian:
-            // ==형광펜== 으로 래핑. (단, 이미 ==포함된 텍스트는 escape 처리)
-            let escaped = text.replacingOccurrences(of: "==", with: "= =")
+            // ==형광펜== 으로 래핑. 본문에 ==가 있으면 하이라이트가 일찍 닫히므로,
+            // 연속된 = 사이에 제로폭 공백(U+200B)을 끼워 분리한다. 화면엔 그대로 보이고
+            // 텍스트도 손상되지 않음(기존 "= =" 치환은 눈에 보이는 공백을 넣어 lossy했음).
+            let escaped = text.replacingOccurrences(
+                of: "=(?==)", with: "=\u{200B}", options: .regularExpression
+            )
             return "==\(escaped)=="
         }
     }

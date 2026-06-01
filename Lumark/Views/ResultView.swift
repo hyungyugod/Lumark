@@ -21,6 +21,8 @@ struct ResultView: View {
     var onClose: (() -> Void)? = nil
     /// 노트가 삭제됐을 때 그 id를 알려줌 (상위에서 캐시 정리용).
     var onDeleted: ((UUID) -> Void)? = nil
+    /// 화면 진입 시 1회 보여줄 안내(예: OCR 부분 실패). 토스트로 표시.
+    var initialNotice: String? = nil
 
     @Environment(\.modelContext) private var modelContext
     @Query private var allNotes: [Note]
@@ -51,6 +53,7 @@ struct ResultView: View {
 
     // 액션 상태
     @State private var toastMessage: String?
+    @State private var didShowNotice = false
     @State private var shareItems: [Any]?
     @State private var isPreparingExport = false
     @State private var activeError: LumarkError?
@@ -123,6 +126,13 @@ struct ResultView: View {
             .padding(.bottom, 16)
         }
         .navigationBarHidden(true)
+        .onAppear {
+            // 부분 실패 등 1회성 안내 — 진입 시 한 번, 조금 길게 노출.
+            if let notice = initialNotice, !didShowNotice {
+                didShowNotice = true
+                showToast(notice, duration: 4.5)
+            }
+        }
         .confirmationDialog("더보기", isPresented: $showingMore, titleVisibility: .hidden) {
             if !isPersisted {
                 Button("저장") { save() }
@@ -455,12 +465,12 @@ struct ResultView: View {
         }
     }
 
-    private func showToast(_ text: String) {
+    private func showToast(_ text: String, duration: Double = 1.4) {
         withAnimation(.easeOut(duration: 0.15)) {
             toastMessage = text
         }
         Task {
-            try? await Task.sleep(nanoseconds: 1_400_000_000)
+            try? await Task.sleep(nanoseconds: UInt64(duration * 1_000_000_000))
             await MainActor.run {
                 withAnimation(.easeIn(duration: 0.15)) {
                     if toastMessage == text { toastMessage = nil }

@@ -63,6 +63,9 @@ final class ProcessingViewModel {
     /// 완료 후 결과 Note. SwiftData 저장은 ResultView가 담당.
     var resultNote: Note? = nil
 
+    /// OCR 중 일시 오류로 건너뛴 페이지 수(부분 성공). 결과 화면 안내용.
+    private(set) var failedPageCount = 0
+
     /// 파이프라인 실패 시 채워짐. spec §8 케이스. view가 alert로 표시.
     var error: LumarkError? = nil
 
@@ -198,6 +201,7 @@ final class ProcessingViewModel {
                             // 네트워크/API 일시 오류 — 이 페이지만 건너뛰고 계속(spec §8 부분 성공).
                             // 앞서 성공한 페이지의 크레딧·결과는 보존됨.
                             perPageSpans.append([])
+                            failedPageCount += 1
                         }
                     }
                 }

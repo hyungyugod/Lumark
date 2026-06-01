@@ -152,6 +152,27 @@ struct MarkdownExporterTests {
         #expect(out.contains("- ==베타락탐=="))
     }
 
+    @Test("Obsidian: 본문의 == 는 제로폭 공백으로 분리(하이라이트 안 깨짐, 텍스트 보존)")
+    func obsidianEscapesInnerEquals() {
+        let doc = MarkdownDocument(
+            title: "T",
+            sections: [
+                MarkdownSection(id: UUID(), title: nil, items: [
+                    MarkdownItem(id: UUID(), color: .yellow, text: "pH == 7")
+                ])
+            ],
+            createdAt: fixedDate(),
+            pageCount: 1,
+            originalFilename: nil
+        )
+
+        let out = MarkdownExporter.export(doc, dialect: .obsidian)
+        // 눈에 보이는 공백을 넣지 않음(lossy "= =" 금지)
+        #expect(out.contains("pH = = 7") == false)
+        // 래핑 ==/== 외에 인접한 == 가 본문에 남지 않음 → 제로폭 공백으로 분리됨
+        #expect(out.contains("pH =\u{200B}= 7"))
+    }
+
     // 통합: from(Note) → export 전체 흐름
     @Test("Note → MarkdownDocument → Markdown 풀 파이프")
     func endToEndPipeline() {

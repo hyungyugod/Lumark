@@ -117,6 +117,9 @@ struct MyQuizzesView: View {
             )
         }
         .buttonStyle(.plain)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(note.title), 카드 \(note.flashcards.count)개")
+        .accessibilityHint("두 번 탭하면 학습 시작")
         .contextMenu {
             Button {
                 onOpenNote(note)
