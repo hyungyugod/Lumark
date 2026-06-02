@@ -217,19 +217,19 @@ struct MyQuizzesView: View {
 
             Spacer(minLength: 8)
 
-            Button {
-                markKnown(card)
+            Button(role: .destructive) {
+                deleteCard(card)
             } label: {
-                Label("안다", systemImage: "checkmark")
+                Label("삭제", systemImage: "trash")
                     .labelStyle(.titleAndIcon)
                     .font(.system(size: 12.5, weight: .semibold))
                     .foregroundStyle(Palette.cream)
                     .padding(.horizontal, 12)
                     .padding(.vertical, 8)
-                    .background(Capsule().fill(Palette.brown))
+                    .background(Capsule().fill(Palette.Highlight.pink))
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("안다로 바꾸기")
+            .accessibilityLabel("이 카드 삭제")
         }
         .padding(Space.s3)
         .background(
@@ -307,13 +307,14 @@ struct MyQuizzesView: View {
         }
     }
 
-    private func markKnown(_ card: Flashcard) {
-        card.reviewState = .known
+    /// '모르는 카드' 목록에서 카드를 영구 삭제.
+    private func deleteCard(_ card: Flashcard) {
+        modelContext.delete(card)
         do {
             try modelContext.save()
             UISelectionFeedbackGenerator().selectionChanged()
         } catch {
-            activeError = .wrapped(code: "QUIZ-KNOWN", message: "카드 상태 저장 실패: \(error.localizedDescription)")
+            activeError = .wrapped(code: "CARD-DEL", message: "카드 삭제 실패: \(error.localizedDescription)")
         }
     }
 }

@@ -62,6 +62,7 @@ struct ResultView: View {
     @State private var isGeneratingQuiz = false
     @State private var showingStudy = false
     @State private var showingSettings = false
+    @State private var showingQuizKindPicker = false
 
     /// 이 Note가 SwiftData 컨테이너에 이미 영속화돼있는가.
     /// 영속화 안 됐으면 저장 버튼 노출.
@@ -131,7 +132,7 @@ struct ResultView: View {
                     quizLabel: note.flashcards.isEmpty ? "퀴즈 만들기" : "퀴즈 보기",
                     quizCost: quizCostBadge,
                     onQuiz: {
-                        if note.flashcards.isEmpty { generateQuiz() } else { showingStudy = true }
+                        if note.flashcards.isEmpty { showingQuizKindPicker = true } else { showingStudy = true }
                     }
                 )
             }
@@ -156,7 +157,7 @@ struct ResultView: View {
             }
             // 퀴즈 — 만들기/보기는 하단 액션바. 메뉴엔 카드 있을 때 "다시 만들기"만.
             if !note.flashcards.isEmpty {
-                Button("퀴즈 다시 만들기") { generateQuiz() }
+                Button("퀴즈 다시 만들기") { showingQuizKindPicker = true }
             }
             Button("이름 변경") {
                 editingTitle = note.title
@@ -230,6 +231,11 @@ struct ResultView: View {
         }
         .sheet(isPresented: $showingSettings) {
             SettingsView()
+        }
+        .confirmationDialog("어떤 퀴즈를 만들까요?", isPresented: $showingQuizKindPicker, titleVisibility: .visible) {
+            Button("주관식 — 질문에 답하기") { generateQuiz(kind: .qa) }
+            Button("OX 퀴즈 — 참 / 거짓 고르기") { generateQuiz(kind: .ox) }
+            Button("취소", role: .cancel) {}
         }
         .errorAlert(error: $activeError) { action in
             // "내 키로 전환"을 눌렀는데 아직 Gemini 키가 없으면 바로 설정으로 안내한다.
@@ -381,7 +387,7 @@ struct ResultView: View {
     }
 
     /// 정리된 노트 텍스트로 Q&A 카드 생성 → 저장 → 학습 화면.
-    private func generateQuiz() {
+    private func generateQuiz(kind: FlashcardKind) {
         guard !isGeneratingQuiz else { return }
         // 엔진이 퀴즈를 못 만드는 경우 로딩 없이 바로 안내(깜빡임 방지).
         switch QuizGenerator.support() {
@@ -410,7 +416,7 @@ struct ResultView: View {
 
         Task {
             do {
-                let cards = try await provider.generate(from: text, count: 12)
+                let cards = try await provider.generate(from: text, count: 12, kind: kind)
                 await MainActor.run {
                     isGeneratingQuiz = false
                     guard !cards.isEmpty else {
@@ -420,7 +426,7 @@ struct ResultView: View {
                     // 다시 만들기: 기존 카드 제거 후 교체
                     for old in targetNote.flashcards { modelContext.delete(old) }
                     for c in cards {
-                        let card = Flashcard(question: c.question, answer: c.answer)
+                        let card = Flashcard(question: c.question, answer: c.answer, kind: kind, oxAnswer: c.oxAnswer)
                         card.note = targetNote
                         modelContext.insert(card)
                     }

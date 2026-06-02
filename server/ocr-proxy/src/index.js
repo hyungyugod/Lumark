@@ -72,7 +72,20 @@ const OCR_SCHEMA = {
 };
 
 // ── Quiz (정리 텍스트 → Q&A 카드)
-function quizPrompt(count) {
+function quizPrompt(count, kind) {
+  if (kind === "ox") {
+    return `아래는 학생이 형광펜으로 정리한 학습 노트입니다. 이 내용으로 시험 대비 OX(참/거짓) 퀴즈를 최대 ${count}개 만들어주세요.
+
+규칙:
+- 노트에 실제로 있는 내용만 사용. 새로운 사실을 지어내지 말 것.
+- question은 참 또는 거짓으로 분명히 판별되는 한 문장의 진술문.
+- ox_answer는 그 진술이 참이면 true, 거짓이면 false.
+- 참인 진술과 거짓인 진술을 골고루 섞을 것(거짓은 노트 내용을 살짝 바꿔서 만들기).
+- answer는 왜 참/거짓인지 한 문장 해설.
+- 내용이 적으면 ${count}개보다 적어도 됨. 한국어로.
+
+응답: {"cards": [{"question": "...", "ox_answer": true, "answer": "..."}, ...]}`;
+  }
   return `아래는 학생이 형광펜으로 정리한 학습 노트입니다. 이 내용으로 시험 대비 학습용 Q&A 플래시카드를 최대 ${count}개 만들어주세요.
 
 규칙:
@@ -84,23 +97,27 @@ function quizPrompt(count) {
 응답: {"cards": [{"question": "...", "answer": "..."}, ...]}`;
 }
 
-const QUIZ_SCHEMA = {
-  type: "object",
-  properties: {
-    cards: {
-      type: "array",
-      items: {
-        type: "object",
-        properties: {
-          question: { type: "string" },
-          answer: { type: "string" },
-        },
-        required: ["question", "answer"],
+function quizSchema(kind) {
+  const props = {
+    question: { type: "string" },
+    answer: { type: "string" },
+  };
+  let required = ["question", "answer"];
+  if (kind === "ox") {
+    props.ox_answer = { type: "boolean" };
+    required = ["question", "ox_answer", "answer"];
+  }
+  return {
+    type: "object",
+    properties: {
+      cards: {
+        type: "array",
+        items: { type: "object", properties: props, required },
       },
     },
-  },
-  required: ["cards"],
-};
+    required: ["cards"],
+  };
+}
 
 // ── 헬퍼
 
@@ -324,6 +341,7 @@ async function handleQuiz(env, userId, body) {
     return json(413, { error: "퀴즈로 만들 텍스트가 너무 길어요. 정리본을 나눠서 시도해주세요." });
   }
   const count = Math.min(Math.max(parseInt(body.count || "10", 10) || 10, 1), 30);
+  const kind = body.kind === "ox" ? "ox" : "qa";
 
   const cost = costOf(env, "quiz");
   let balance;
@@ -334,15 +352,19 @@ async function handleQuiz(env, userId, body) {
   }
   await bumpGlobal(env);   // 과금 동작 1건 카운트
 
-  const parts = [{ text: quizPrompt(count) + "\n\n---\n\n" + text }];
-  const res = await callGemini(env, parts, QUIZ_SCHEMA, 4096);
+  const parts = [{ text: quizPrompt(count, kind) + "\n\n---\n\n" + text }];
+  const res = await callGemini(env, parts, quizSchema(kind), 4096);
   if (res.error) { await refundCredits(env, userId, cost, "quiz"); return res.error; }
 
   let cards = [];
   if (Array.isArray(res.parsed?.cards)) {
     cards = res.parsed.cards
       .filter((c) => c && typeof c.question === "string" && typeof c.answer === "string")
-      .map((c) => ({ question: c.question.trim(), answer: c.answer.trim() }))
+      .map((c) => {
+        const card = { question: c.question.trim(), answer: c.answer.trim() };
+        if (kind === "ox" && typeof c.ox_answer === "boolean") card.ox_answer = c.ox_answer;
+        return card;
+      })
       .filter((c) => c.question !== "" && c.answer !== "");
   }
   return json(200, { cards, credits: balance });

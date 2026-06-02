@@ -18,7 +18,7 @@ struct ProxyQuizProvider: QuizProvider {
         self.appToken = appToken
     }
 
-    func generate(from text: String, count: Int) async throws -> [QuizCard] {
+    func generate(from text: String, count: Int, kind: FlashcardKind) async throws -> [QuizCard] {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { throw QuizError.emptyInput }
         guard let url = URL(string: endpoint), endpoint.hasPrefix("https://") else {
@@ -29,7 +29,7 @@ struct ProxyQuizProvider: QuizProvider {
             throw QuizError.notSignedIn
         }
 
-        let payload: [String: Any] = ["text": trimmed, "count": count]
+        let payload: [String: Any] = ["text": trimmed, "count": count, "kind": kind.rawValue]
         let bodyData = try JSONSerialization.data(withJSONObject: payload)
 
         var req = URLRequest(url: url)

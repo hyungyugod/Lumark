@@ -19,9 +19,9 @@ enum OCREngine: String, Codable, CaseIterable, Sendable, Identifiable {
 
     nonisolated var displayName: String {
         switch self {
-        case .lumarkCloud: return "Lumark Cloud (기본)"
-        case .geminiFlash: return "내 Gemini 키 (고급)"
-        case .appleVision: return "Apple Vision (오프라인)"
+        case .lumarkCloud: return "Lumark 자동 변환 (추천)"
+        case .geminiFlash: return "내 API 키 (고급)"
+        case .appleVision: return "오프라인 변환 (무료)"
         }
     }
 
@@ -29,11 +29,11 @@ enum OCREngine: String, Codable, CaseIterable, Sendable, Identifiable {
     nonisolated var blurb: String {
         switch self {
         case .lumarkCloud:
-            return "키 입력 없이 바로 사용. 한국어 OCR 정확도 높음. 하루 사용량 한도 있음."
+            return "로그인하면 무료 크레딧으로 바로 사용해요. 한국어 형광펜 인식 정확도가 가장 높아요. 하루 사용량 한도가 있어요."
         case .geminiFlash:
-            return "본인 Google AI Studio 키 직접 사용. 한도 없음(본인 부담)."
+            return "본인 Google AI Studio 키를 직접 등록해 한도 없이 사용해요(비용 본인 부담)."
         case .appleVision:
-            return "온디바이스. 무료·오프라인. 한국어 인쇄체 정확도 보통."
+            return "인터넷 없이 기기에서 무료로 처리해요. 다만 정확도가 낮아 형광펜·손글씨를 놓칠 수 있어요."
         }
     }
 

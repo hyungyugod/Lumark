@@ -246,7 +246,14 @@ struct SettingsView: View {
             // 엔진 picker
             Picker("엔진", selection: Binding(
                 get: { ocrPrefs.engine },
-                set: { ocrPrefs.engine = $0 }
+                set: { newEngine in
+                    // 로그인 안 한 게스트는 'Lumark 자동 변환'(크레딧 필요) 선택 불가 → 로그인 유도.
+                    if newEngine == .lumarkCloud && !auth.isSignedIn {
+                        showingSignIn = true
+                    } else {
+                        ocrPrefs.engine = newEngine
+                    }
+                }
             )) {
                 ForEach(OCREngine.allCases) { engine in
                     Text(engine.displayName).tag(engine)
@@ -270,6 +277,29 @@ struct SettingsView: View {
                     Text("Lumark Cloud 서버가 아직 연결되지 않았어요. 개발자: server/ocr-proxy 배포 후 OCRPreferences.lumarkCloudEndpoint를 설정하세요. 그 전까지는 '내 Gemini 키'를 사용하세요.")
                         .font(.system(size: 11.5))
                         .foregroundStyle(Palette.subtle)
+                }
+                .padding(.vertical, 2)
+            }
+
+            // 로그인 안 한 게스트가 Lumark 자동 변환을 보고 있으면 로그인 유도
+            if ocrPrefs.engine == .lumarkCloud && !auth.isSignedIn {
+                HStack(alignment: .top, spacing: 6) {
+                    Image(systemName: "lock.fill")
+                        .font(.system(size: 12))
+                        .foregroundStyle(Palette.brown)
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Lumark 자동 변환은 로그인 후 무료 크레딧으로 쓸 수 있어요. 로그인 없이 바로 쓰려면 '오프라인 변환'을 선택하세요.")
+                            .font(.system(size: 11.5))
+                            .foregroundStyle(Palette.subtle)
+                        Button {
+                            showingSignIn = true
+                        } label: {
+                            Text("로그인하기")
+                                .font(.system(size: 12.5, weight: .semibold))
+                                .foregroundStyle(Palette.brown)
+                        }
+                        .buttonStyle(.plain)
+                    }
                 }
                 .padding(.vertical, 2)
             }

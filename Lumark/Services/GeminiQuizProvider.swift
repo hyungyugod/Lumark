@@ -16,15 +16,15 @@ struct GeminiQuizProvider: QuizProvider {
         self.model = model
     }
 
-    func generate(from text: String, count: Int) async throws -> [QuizCard] {
+    func generate(from text: String, count: Int, kind: FlashcardKind) async throws -> [QuizCard] {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { throw QuizError.emptyInput }
 
         let body: [String: Any] = [
-            "contents": [["parts": [["text": QuizPrompt.text(count: count) + "\n\n---\n\n" + trimmed]]]],
+            "contents": [["parts": [["text": QuizPrompt.text(count: count, kind: kind) + "\n\n---\n\n" + trimmed]]]],
             "generationConfig": [
                 "responseMimeType": "application/json",
-                "responseSchema": QuizPrompt.schema,
+                "responseSchema": QuizPrompt.schema(kind: kind),
                 "maxOutputTokens": 4096,
                 "temperature": 0.2,
             ],

@@ -117,7 +117,7 @@ struct FlashcardStudyView: View {
     }
 
     private var hint: some View {
-        Text("카드를 탭해 정답을 본 뒤 채점해요")
+        Text(session.first?.kind == .ox ? "O 또는 X를 골라 풀어요" : "카드를 탭해 정답을 본 뒤 채점해요")
             .font(.system(size: 12.5))
             .foregroundStyle(Palette.subtle)
     }
@@ -190,9 +190,26 @@ struct FlashcardStudyView: View {
     }
 }
 
-// MARK: - 한 장 (탭으로 뒤집기 + 채점)
+// MARK: - 한 장 (유형에 따라 분기)
 
 private struct FlipCard: View {
+    let card: Flashcard
+    /// 이전 채점 결과(있으면 해당 버튼 강조). nil = 아직 미채점.
+    let mark: Bool?
+    var onMark: (Bool) -> Void
+
+    var body: some View {
+        if card.kind == .ox {
+            OXFlipCard(card: card, onMark: onMark)
+        } else {
+            QAFlipCard(card: card, mark: mark, onMark: onMark)
+        }
+    }
+}
+
+// MARK: - 주관식 한 장 (탭으로 뒤집기 + 채점)
+
+private struct QAFlipCard: View {
     let card: Flashcard
     /// 이전 채점 결과(있으면 해당 버튼 강조). nil = 아직 미채점.
     let mark: Bool?
@@ -310,6 +327,127 @@ private struct FlipCard: View {
                 .strokeBorder(Palette.divider, lineWidth: 0.5)
         )
         .shadow(color: .black.opacity(0.12), radius: 24, x: 0, y: 10)
+    }
+}
+
+// MARK: - OX 한 장 (참/거짓 고르기)
+
+private struct OXFlipCard: View {
+    let card: Flashcard
+    var onMark: (Bool) -> Void
+
+    /// 사용자가 고른 답(O=true). nil = 아직 미선택.
+    @State private var picked: Bool?
+    @ScaledMetric(relativeTo: .title2) private var cardTextSize: CGFloat = 21
+
+    private var isCorrect: Bool? {
+        guard let picked, let answer = card.oxAnswer else { return nil }
+        return picked == answer
+    }
+
+    var body: some View {
+        VStack(spacing: 14) {
+            statementCard
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+            if picked == nil {
+                choiceRow.frame(height: 48)
+            } else {
+                nextButton.frame(height: 48)
+            }
+        }
+        .id(card.id)
+    }
+
+    private var statementCard: some View {
+        VStack(spacing: Space.s4) {
+            HStack(spacing: 6) {
+                Circle().fill(Palette.Highlight.yellow).frame(width: 8, height: 8)
+                Text("참일까, 거짓일까?")
+                    .font(.system(size: 12, weight: .semibold))
+                    .tracking(1.5)
+                    .foregroundStyle(Palette.subtle)
+            }
+
+            Spacer()
+
+            Text(card.question)
+                .font(.system(size: cardTextSize, weight: .semibold))
+                .foregroundStyle(Palette.ink)
+                .multilineTextAlignment(.center)
+                .lineSpacing(5)
+                .padding(.horizontal, Space.s4)
+                .textSelection(.enabled)
+
+            Spacer()
+
+            if let isCorrect {
+                VStack(spacing: 8) {
+                    Text(isCorrect ? "정답!" : "오답")
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundStyle(isCorrect ? Palette.brown : Palette.Highlight.pink)
+                    Text(answerLine)
+                        .font(.system(size: 13))
+                        .foregroundStyle(Palette.subtle)
+                        .multilineTextAlignment(.center)
+                        .lineSpacing(3)
+                }
+                .padding(.horizontal, Space.s4)
+                .transition(.opacity)
+            }
+        }
+        .padding(Space.s5)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(RoundedRectangle(cornerRadius: 20, style: .continuous).fill(Palette.surface))
+        .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).strokeBorder(Palette.divider, lineWidth: 0.5))
+        .shadow(color: .black.opacity(0.12), radius: 24, x: 0, y: 10)
+    }
+
+    private var answerLine: String {
+        let correctMark = (card.oxAnswer == true) ? "O (참)" : "X (거짓)"
+        let explanation = card.answer.trimmingCharacters(in: .whitespacesAndNewlines)
+        return explanation.isEmpty ? "정답: \(correctMark)" : "정답: \(correctMark) — \(explanation)"
+    }
+
+    private var choiceRow: some View {
+        HStack(spacing: 10) {
+            oxButton(isO: false)
+            oxButton(isO: true)
+        }
+    }
+
+    private func oxButton(isO: Bool) -> some View {
+        Button {
+            withAnimation(.easeInOut(duration: 0.2)) { picked = isO }
+            UISelectionFeedbackGenerator().selectionChanged()
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: isO ? "circle" : "xmark")
+                    .font(.system(size: 16, weight: .bold))
+                Text(isO ? "맞다 (O)" : "아니다 (X)")
+                    .font(.system(size: 15, weight: .semibold))
+            }
+            .frame(maxWidth: .infinity)
+            .frame(height: 48)
+            .foregroundStyle(Palette.brown)
+            .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Palette.surface))
+            .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(Palette.brown.opacity(0.35), lineWidth: 1))
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var nextButton: some View {
+        Button {
+            onMark(isCorrect == true)
+        } label: {
+            Text("다음")
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(Palette.cream)
+                .frame(maxWidth: .infinity)
+                .frame(height: 48)
+                .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Palette.brown))
+        }
+        .buttonStyle(.plain)
     }
 }
 

@@ -76,11 +76,39 @@ struct QuizGeneratorTests {
 
     // MARK: - 스키마 형태
 
-    @Test("QuizPrompt.schema — cards 배열 + question/answer required")
+    @Test("QuizPrompt.schema(.qa) — cards 배열 + question/answer required")
     func schemaShape() throws {
-        let schema = QuizPrompt.schema
+        let schema = QuizPrompt.schema(kind: .qa)
         #expect(schema["type"] as? String == "object")
         let props = try #require(schema["properties"] as? [String: Any])
         #expect(props["cards"] != nil)
+    }
+
+    // MARK: - OX 퀴즈
+
+    @Test("parseCards — OX ox_answer 파싱")
+    func parseOX() throws {
+        let d = data(#"{"cards":[{"question":"지구는 둥글다","ox_answer":true,"answer":"맞아요"},{"question":"해는 서쪽에서 뜬다","ox_answer":false,"answer":"동쪽이에요"}]}"#)
+        let cards = try QuizPrompt.parseCards(d)
+        #expect(cards.count == 2)
+        #expect(cards[0].oxAnswer == true)
+        #expect(cards[1].oxAnswer == false)
+    }
+
+    @Test("parseCards — 주관식 카드는 oxAnswer가 nil")
+    func parseQAHasNilOX() throws {
+        let cards = try QuizPrompt.parseCards(data(#"{"cards":[{"question":"Q","answer":"A"}]}"#))
+        #expect(cards.count == 1)
+        #expect(cards[0].oxAnswer == nil)
+    }
+
+    @Test("QuizPrompt.schema(.ox) — ox_answer required 포함")
+    func schemaOX() throws {
+        let schema = QuizPrompt.schema(kind: .ox)
+        let props = try #require(schema["properties"] as? [String: Any])
+        let cards = try #require(props["cards"] as? [String: Any])
+        let items = try #require(cards["items"] as? [String: Any])
+        let required = try #require(items["required"] as? [String])
+        #expect(required.contains("ox_answer"))
     }
 }
