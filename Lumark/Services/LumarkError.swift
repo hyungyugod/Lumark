@@ -162,8 +162,8 @@ extension LumarkError {
         case .partialSuccess:
             return [.viewResult]
         case .wrapped(let code, _):
-            // 크레딧 부족이면 본인 키 전환 탈출구 제공.
-            return code == "CREDITS" ? [.switchToOwnKey, .dismiss] : [.dismiss]
+            // 크레딧 부족·전역 한도면 본인 키 전환 탈출구 제공.
+            return (code == "CREDITS" || code == "BUSY") ? [.switchToOwnKey, .dismiss] : [.dismiss]
         }
     }
 

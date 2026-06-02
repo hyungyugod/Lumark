@@ -81,6 +81,7 @@ enum OCRProviderError: Error, LocalizedError {
     case missingAPIKey(engine: OCREngine)
     case notSignedIn
     case creditsExhausted(message: String)
+    case serviceBusy(message: String)   // 전역 일일 한도(429) — 오늘 무료 사용량 소진
     case networkFailure(underlying: Error)
     case invalidResponse(detail: String)
     case apiError(status: Int, body: String)
@@ -92,6 +93,8 @@ enum OCRProviderError: Error, LocalizedError {
         case .notSignedIn:
             return "Lumark Cloud를 쓰려면 로그인이 필요해요. 설정 → 계정에서 로그인하거나, 내 Gemini 키로 바꿔주세요."
         case .creditsExhausted(let message):
+            return message
+        case .serviceBusy(let message):
             return message
         case .networkFailure(let err):
             return "OCR 네트워크 오류: \(err.localizedDescription)"

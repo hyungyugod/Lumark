@@ -85,8 +85,8 @@ struct ProxyOCRProvider: OCRProvider {
             throw OCRProviderError.creditsExhausted(message: msg)
         }
         if http.statusCode == 429 {
-            let msg = Self.errorMessage(from: data) ?? "지금 사용량이 많아요. 잠시 후 다시 시도해주세요."
-            throw OCRProviderError.apiError(status: 429, body: msg)
+            let msg = Self.errorMessage(from: data) ?? "오늘 무료 사용량이 다 찼어요. 내일 다시 충전돼요."
+            throw OCRProviderError.serviceBusy(message: msg)
         }
         guard (200..<300).contains(http.statusCode) else {
             let msg = Self.errorMessage(from: data) ?? (String(data: data, encoding: .utf8) ?? "")

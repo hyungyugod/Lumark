@@ -28,6 +28,7 @@ enum QuizError: Error, LocalizedError {
     case missingAPIKey
     case notSignedIn
     case creditsExhausted(String)
+    case serviceBusy(String)        // 전역 일일 한도(429)
     case emptyInput
     case network(Error)
     case api(status: Int, body: String)
@@ -42,6 +43,8 @@ enum QuizError: Error, LocalizedError {
         case .notSignedIn:
             return "Lumark Cloud를 쓰려면 로그인이 필요해요. 설정 → 계정에서 로그인하거나, 내 Gemini 키로 바꿔주세요."
         case .creditsExhausted(let msg):
+            return msg
+        case .serviceBusy(let msg):
             return msg
         case .emptyInput:
             return "카드를 만들 내용이 없어요."

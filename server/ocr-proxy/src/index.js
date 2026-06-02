@@ -188,7 +188,7 @@ async function globalCapExceeded(env) {
   if (!cap) return null;
   const used = parseInt((await env.RATE.get(`g:${todayKey()}`)) || "0", 10);
   if (used >= cap) {
-    return json(429, { error: "서비스 전체 일일 한도에 도달했어요. 잠시 후 다시 시도해주세요." });
+    return json(429, { error: "오늘 무료 사용량이 모두 찼어요. 내일 다시 충전돼요. (설정에서 '내 API 키'를 넣으면 지금 바로 쓸 수 있어요.)" });
   }
   return null;
 }

@@ -58,7 +58,7 @@ struct ProxyQuizProvider: QuizProvider {
             throw QuizError.creditsExhausted(serverMsg ?? "크레딧이 부족해요. 내일 충전되거나, 설정에서 내 Gemini 키로 쓸 수 있어요.")
         }
         if http.statusCode == 429 {
-            throw QuizError.api(status: 429, body: serverMsg ?? "지금 사용량이 많아요. 잠시 후 다시 시도해주세요.")
+            throw QuizError.serviceBusy(serverMsg ?? "오늘 무료 사용량이 다 찼어요. 내일 다시 충전돼요.")
         }
         guard (200..<300).contains(http.statusCode) else {
             throw QuizError.api(status: http.statusCode, body: String(data: data, encoding: .utf8) ?? "")

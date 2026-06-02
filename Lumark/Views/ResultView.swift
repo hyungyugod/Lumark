@@ -439,7 +439,11 @@ struct ResultView: View {
                     isGeneratingQuiz = false
                     // 크레딧 부족이면 "CREDITS" 코드로(본인 키 전환 액션 노출).
                     let code: String
-                    if case .creditsExhausted = e { code = "CREDITS" } else { code = "QUIZ" }
+                    switch e {
+                    case .creditsExhausted: code = "CREDITS"
+                    case .serviceBusy:      code = "BUSY"
+                    default:                code = "QUIZ"
+                    }
                     activeError = .wrapped(code: code, message: e.errorDescription ?? "퀴즈 생성 실패")
                 }
             } catch {

@@ -198,6 +198,9 @@ final class ProcessingViewModel {
                             throw LumarkError.wrapped(code: "CREDITS", message: providerError.errorDescription ?? "크레딧이 부족해요.")
                         case .notSignedIn:
                             throw LumarkError.wrapped(code: "LOGIN", message: providerError.errorDescription ?? "로그인이 필요해요.")
+                        case .serviceBusy:
+                            // 전역 일일 한도 — 더 진행해도 매 페이지 429라 중단하고 안내.
+                            throw LumarkError.wrapped(code: "BUSY", message: providerError.errorDescription ?? "오늘 무료 사용량이 다 찼어요. 내일 다시 이용해 주세요.")
                         default:
                             // 네트워크/API 일시 오류 — 이 페이지만 건너뛰고 계속(spec §8 부분 성공).
                             // 앞서 성공한 페이지의 크레딧·결과는 보존됨.
