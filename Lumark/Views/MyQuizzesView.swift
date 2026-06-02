@@ -4,6 +4,7 @@
 //
 //  만든 퀴즈(플래시카드) 모아보기. 카드가 1장 이상 있는 노트만 나열.
 //  행 탭 → 학습(FlashcardStudyView). context menu → 정리본 보기 / 퀴즈 삭제.
+//  '모르는 카드' 탭은 카드 한 장씩 복습 — "다음" / "이젠 알아요"(목록에서 제거).
 //
 
 import SwiftUI
@@ -28,6 +29,9 @@ struct MyQuizzesView: View {
     @State private var deleteTarget: Note?
     @State private var activeError: LumarkError?
     @State private var selectedTab: QuizLibraryTab = .quizzes
+    /// 모르는 카드 복습 시 현재 카드 위치. 카드를 익히면 목록이 줄어드는데,
+    /// 렌더에서 항상 clamp하므로 같은 위치가 자연스럽게 다음 카드를 가리킨다.
+    @State private var unknownIndex = 0
 
     /// 카드가 있는 노트만. @Query가 이미 최신순 정렬.
     private var quizNotes: [Note] {
@@ -59,7 +63,7 @@ struct MyQuizzesView: View {
                     if unknownCards.isEmpty {
                         unknownEmptyState
                     } else {
-                        unknownListContent
+                        unknownReviewContent
                     }
                 }
             }
@@ -101,19 +105,6 @@ struct MyQuizzesView: View {
         ScrollView {
             LazyVStack(spacing: 10) {
                 ForEach(quizNotes) { row(for: $0) }
-            }
-            .padding(.horizontal, Space.s5)
-            .padding(.top, Space.s3)
-            .padding(.bottom, Space.s7)
-        }
-    }
-
-    private var unknownListContent: some View {
-        ScrollView {
-            LazyVStack(spacing: 10) {
-                ForEach(unknownCards) { card in
-                    unknownRow(for: card)
-                }
             }
             .padding(.horizontal, Space.s5)
             .padding(.top, Space.s3)
@@ -185,61 +176,62 @@ struct MyQuizzesView: View {
         }
     }
 
-    private func unknownRow(for card: Flashcard) -> some View {
-        HStack(alignment: .top, spacing: Space.s3) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(Palette.Highlight.orangeBG)
-                Image(systemName: "arrow.counterclockwise")
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundStyle(Palette.brown)
-            }
-            .frame(width: 44, height: 44)
+    // MARK: - 모르는 카드 복습
 
-            VStack(alignment: .leading, spacing: 6) {
-                if let title = card.note?.title {
-                    Text(title)
-                        .font(.system(size: 11.5, weight: .medium))
-                        .foregroundStyle(Palette.muted)
-                        .lineLimit(1)
+    private var unknownReviewContent: some View {
+        let count = unknownCards.count
+        let safe = max(0, min(unknownIndex, count - 1))
+        let card = unknownCards[safe]
+        return VStack(spacing: Space.s4) {
+            Text("\(safe + 1) / \(count)")
+                .font(Typo.mono)
+                .foregroundStyle(Palette.subtle)
+                .padding(.top, Space.s2)
+
+            ReviewCardView(card: card)
+                .padding(.horizontal, Space.s5)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+            VStack(spacing: 8) {
+                HStack(spacing: 10) {
+                    Button { nextUnknown() } label: {
+                        Text("다음")
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundStyle(Palette.brown)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 50)
+                            .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Palette.surface))
+                            .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(Palette.brown.opacity(0.35), lineWidth: 1))
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(count <= 1)
+                    .opacity(count <= 1 ? 0.5 : 1)
+
+                    Button { markKnownReview(card) } label: {
+                        Text("이젠 알아요")
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundStyle(Palette.cream)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 50)
+                            .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Palette.brown))
+                    }
+                    .buttonStyle(.plain)
                 }
-
-                Text(card.question)
-                    .font(.system(size: 14.5, weight: .semibold))
-                    .foregroundStyle(Palette.ink)
-                    .lineLimit(2)
-
-                Text(card.answer)
-                    .font(.system(size: 12.5))
+                Text("‘이젠 알아요’를 누르면 이 카드는 목록에서 사라져요")
+                    .font(.system(size: 11.5))
                     .foregroundStyle(Palette.subtle)
-                    .lineLimit(2)
             }
-
-            Spacer(minLength: 8)
-
-            Button(role: .destructive) {
-                deleteCard(card)
-            } label: {
-                Label("삭제", systemImage: "trash")
-                    .labelStyle(.titleAndIcon)
-                    .font(.system(size: 12.5, weight: .semibold))
-                    .foregroundStyle(Palette.cream)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 8)
-                    .background(Capsule().fill(Palette.Highlight.pink))
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("이 카드 삭제")
+            .padding(.horizontal, Space.s5)
+            .padding(.bottom, Space.s5)
         }
-        .padding(Space.s3)
-        .background(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(Palette.surface)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .strokeBorder(Palette.divider, lineWidth: 1)
-        )
+    }
+
+    /// 다음 모르는 카드로(끝까지 가면 처음으로 순환).
+    private func nextUnknown() {
+        let count = unknownCards.count
+        guard count > 1 else { return }
+        unknownIndex = (max(0, min(unknownIndex, count - 1)) + 1) % count
+        UISelectionFeedbackGenerator().selectionChanged()
     }
 
     // MARK: - 빈 상태
@@ -295,7 +287,7 @@ struct MyQuizzesView: View {
         note.flashcards.sorted { $0.createdAt < $1.createdAt }.first?.question
     }
 
-    // MARK: - 삭제
+    // MARK: - 동작
 
     /// 노트의 플래시카드만 삭제(정리본 Note는 유지).
     private func deleteQuiz(_ note: Note) {
@@ -307,15 +299,82 @@ struct MyQuizzesView: View {
         }
     }
 
-    /// '모르는 카드' 목록에서 카드를 영구 삭제.
-    private func deleteCard(_ card: Flashcard) {
-        modelContext.delete(card)
+    /// '이젠 알아요' — 카드를 익힘으로 표시해 모르는 목록에서 제거.
+    /// 카드 자체는 원래 퀴즈에 그대로 보존된다(영구 삭제 아님).
+    private func markKnownReview(_ card: Flashcard) {
+        card.reviewState = .known
         do {
             try modelContext.save()
             UISelectionFeedbackGenerator().selectionChanged()
         } catch {
-            activeError = .wrapped(code: "CARD-DEL", message: "카드 삭제 실패: \(error.localizedDescription)")
+            activeError = .wrapped(code: "CARD-KNOWN", message: "카드 상태 저장 실패: \(error.localizedDescription)")
         }
+    }
+}
+
+// MARK: - 모르는 카드 복습용 한 장 (탭하면 질문↔정답)
+
+private struct ReviewCardView: View {
+    let card: Flashcard
+    @State private var showAnswer = false
+    @ScaledMetric(relativeTo: .title2) private var cardTextSize: CGFloat = 20
+
+    /// 정답 면 텍스트. OX 카드면 정답(O/X) + 해설을 함께.
+    private var answerText: String {
+        if card.kind == .ox, let ox = card.oxAnswer {
+            let mark = ox ? "O (참)" : "X (거짓)"
+            let exp = card.answer.trimmingCharacters(in: .whitespacesAndNewlines)
+            return exp.isEmpty ? "정답: \(mark)" : "정답: \(mark)\n\(exp)"
+        }
+        return card.answer
+    }
+
+    var body: some View {
+        VStack(spacing: Space.s4) {
+            HStack(spacing: 6) {
+                Circle()
+                    .fill(showAnswer ? Palette.Highlight.orange : Palette.Highlight.yellow)
+                    .frame(width: 8, height: 8)
+                Text(showAnswer ? "정답" : "질문")
+                    .font(.system(size: 12, weight: .semibold))
+                    .tracking(1.5)
+                    .foregroundStyle(Palette.subtle)
+            }
+
+            if let title = card.note?.title {
+                Text(title)
+                    .font(.system(size: 11.5, weight: .medium))
+                    .foregroundStyle(Palette.muted)
+                    .lineLimit(1)
+            }
+
+            Spacer()
+
+            Text(showAnswer ? answerText : card.question)
+                .font(.system(size: cardTextSize, weight: .semibold))
+                .foregroundStyle(Palette.ink)
+                .multilineTextAlignment(.center)
+                .lineSpacing(5)
+                .padding(.horizontal, Space.s4)
+                .textSelection(.enabled)
+
+            Spacer()
+
+            Text(showAnswer ? "탭하면 질문" : "탭하면 정답")
+                .font(.system(size: 11.5))
+                .foregroundStyle(Palette.muted)
+        }
+        .padding(Space.s5)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(RoundedRectangle(cornerRadius: 20, style: .continuous).fill(Palette.surface))
+        .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).strokeBorder(Palette.divider, lineWidth: 0.5))
+        .shadow(color: .black.opacity(0.10), radius: 18, x: 0, y: 8)
+        .contentShape(Rectangle())
+        .onTapGesture {
+            withAnimation(.spring(response: 0.4, dampingFraction: 0.82)) { showAnswer.toggle() }
+            UISelectionFeedbackGenerator().selectionChanged()
+        }
+        .id(card.id)
     }
 }
 
