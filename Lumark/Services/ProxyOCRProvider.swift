@@ -24,7 +24,7 @@ struct ProxyOCRProvider: OCRProvider {
     nonisolated init(
         endpoint: String,
         appToken: String? = nil,
-        longSideTarget: CGFloat = 1536,
+        longSideTarget: CGFloat = 1024,   // 1024 = 2x1 Gemini 타일(이미지 토큰 절반). 1536은 2x2.
         jpegQuality: CGFloat = 0.82
     ) {
         self.endpoint = endpoint
