@@ -43,20 +43,23 @@ enum AppGroup {
         let originalFilename: String
         let utiHint: String          // "pdf" / "image"
         let receivedAt: Date
-        let dataFilename: String     // {id}.{ext}
+        let dataFilename: String     // 단일/대표 파일 (하위호환)
+        let dataFilenames: [String]? // 다중 이미지(멀티페이지)면 전체 페이지 목록. nil이면 단일.
 
         nonisolated init(
             id: UUID,
             originalFilename: String,
             utiHint: String,
             receivedAt: Date,
-            dataFilename: String
+            dataFilename: String,
+            dataFilenames: [String]? = nil
         ) {
             self.id = id
             self.originalFilename = originalFilename
             self.utiHint = utiHint
             self.receivedAt = receivedAt
             self.dataFilename = dataFilename
+            self.dataFilenames = dataFilenames
         }
     }
 
@@ -89,22 +92,62 @@ enum AppGroup {
         return id
     }
 
-    /// 메인 앱에서 호출 — deeplink ID로 Inbox에서 메타 + 데이터 URL 로드.
-    static func load(id: UUID) throws -> (meta: InboxItemMeta, dataURL: URL) {
+    /// 멀티페이지 이미지 배치의 한 페이지를 디스크에 쓰고 파일명을 반환.
+    /// 한 장씩 받아 바로 쓰므로 Extension 메모리 피크가 1장으로 유지된다
+    /// (여러 장을 한꺼번에 메모리에 들고 있다가 ~120MB 한도에 죽는 것을 방지).
+    static func stageImagePage(batchID: UUID, pageIndex: Int, data: Data) throws -> String {
+        guard let inbox = ensureInbox() else {
+            throw NSError(
+                domain: "AppGroup", code: 1,
+                userInfo: [NSLocalizedDescriptionKey: "App Group 접근 실패 (Code: AG-01)"]
+            )
+        }
+        let name = "\(batchID.uuidString)-\(String(format: "%04d", pageIndex)).img"
+        try data.write(to: inbox.appendingPathComponent(name), options: .atomic)
+        return name
+    }
+
+    /// 멀티페이지 이미지 배치의 메타를 기록. 모든 페이지를 쓴 뒤 마지막에 호출.
+    /// 사진 여러 장을 한 번에 공유하면 1개의 멀티페이지 노트로 변환된다.
+    static func finalizeImageBatch(batchID: UUID, originalFilename: String, pageFilenames: [String]) throws {
+        guard let inbox = ensureInbox() else {
+            throw NSError(
+                domain: "AppGroup", code: 1,
+                userInfo: [NSLocalizedDescriptionKey: "App Group 접근 실패 (Code: AG-01)"]
+            )
+        }
+        let meta = InboxItemMeta(
+            id: batchID,
+            originalFilename: originalFilename,
+            utiHint: "image",
+            receivedAt: .now,
+            dataFilename: pageFilenames.first ?? "\(batchID.uuidString)-0000.img",
+            dataFilenames: pageFilenames
+        )
+        let metaURL = inbox.appendingPathComponent("\(batchID.uuidString).json")
+        try JSONEncoder().encode(meta).write(to: metaURL, options: .atomic)
+    }
+
+    /// 메인 앱에서 호출 — deeplink ID로 Inbox에서 메타 + 데이터 URL(들) 로드.
+    /// 단일 항목이면 [1개], 멀티페이지 이미지면 페이지 순서대로 반환.
+    static func load(id: UUID) throws -> (meta: InboxItemMeta, dataURLs: [URL]) {
         guard let inbox = inboxURL else {
             throw NSError(domain: "AppGroup", code: 1)
         }
         let metaURL = inbox.appendingPathComponent("\(id.uuidString).json")
         let metaData = try Data(contentsOf: metaURL)
         let meta = try JSONDecoder().decode(InboxItemMeta.self, from: metaData)
-        let dataURL = inbox.appendingPathComponent(meta.dataFilename)
-        guard FileManager.default.fileExists(atPath: dataURL.path) else {
-            throw NSError(
-                domain: "AppGroup", code: 2,
-                userInfo: [NSLocalizedDescriptionKey: "Inbox 데이터 누락"]
-            )
+        let names = meta.dataFilenames ?? [meta.dataFilename]
+        let urls = names.map { inbox.appendingPathComponent($0) }
+        for url in urls {
+            guard FileManager.default.fileExists(atPath: url.path) else {
+                throw NSError(
+                    domain: "AppGroup", code: 2,
+                    userInfo: [NSLocalizedDescriptionKey: "Inbox 데이터 누락"]
+                )
+            }
         }
-        return (meta, dataURL)
+        return (meta, urls)
     }
 
     /// Inbox 항목 정리 — 메인 앱이 처리 완료한 후 호출.

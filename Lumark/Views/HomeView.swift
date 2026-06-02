@@ -190,9 +190,9 @@ struct HomeView: View {
                     handleDeeplink(dl)
                     router.pendingDeeplink = nil
                 }
-                // 30분 이상 묵은 작업은 정리, 재개 가능한 작업 검사
+                // 30분 이상 묵은 작업은 정리하고, 중단된(미완료) 작업은 폐기
                 JobStateStore.shared.purgeStale()
-                checkResumableJob()
+                discardInterruptedJobs()
                 // 크레딧 잔액 펠 채우기 (Lumark Cloud + 로그인 시)
                 if ocrPrefs.engine == .lumarkCloud, auth.isSignedIn {
                     await auth.refreshCredits()
@@ -732,39 +732,24 @@ struct HomeView: View {
 
     // MARK: - Deeplink (Share Extension 진입)
 
-    /// 콜드 부팅 시 진행 중이던 작업 자동 재진입.
-    /// v0.1 디자인 단계는 Mock 타이머라 재진입 시 처음부터 다시 — 실제 OCR 들어가면
-    /// stage/currentPage에서 이어서 시작할 수 있게 ProcessingViewModel 확장 필요.
-    private func checkResumableJob() {
-        guard let job = JobStateStore.shared.resumableJob else { return }
-        // 데이터 소스 복원
-        let source: JobSource
-        if job.isPDF, let url = job.stagedURL,
-           FileManager.default.fileExists(atPath: url.path) {
-            source = .pdf(url)
-        } else if let paths = job.imageDataPaths, !paths.isEmpty {
-            let datas = paths.compactMap { try? Data(contentsOf: URL(fileURLWithPath: $0)) }
-            guard !datas.isEmpty else {
-                JobStateStore.shared.finish(id: job.id)
-                return
+    /// 콜드 부팅 시 중단된(미완료) 작업을 정리한다.
+    /// v1.0은 자동 재개를 하지 않는다 — 재개가 사실상 전체 재처리라, Lumark Cloud로
+    /// 변환 중이었다면 이미 처리한 페이지의 크레딧이 다시 차감될 수 있기 때문.
+    /// 중단된 변환은 깔끔히 폐기하고, Share Extension inbox·임시 파일도 함께 정리한다.
+    /// (사용자는 홈에서 다시 변환하면 된다.)
+    private func discardInterruptedJobs() {
+        let interrupted = JobStateStore.shared.jobs
+        for job in interrupted {
+            if let inboxID = job.inboxID {
+                AppGroup.cleanup(id: inboxID)
             }
-            source = .images(datas)
-        } else {
-            // 파일이 사라졌으면 잡 폐기
+            // 이미지 변환용 임시 디렉토리(jobs/{id}/) 정리.
+            let jobDir = FileManager.default.temporaryDirectory
+                .appendingPathComponent("jobs", isDirectory: true)
+                .appendingPathComponent(job.id.uuidString, isDirectory: true)
+            try? FileManager.default.removeItem(at: jobDir)
             JobStateStore.shared.finish(id: job.id)
-            return
         }
-
-        // PendingJob 재구성 후 ProcessingView 진입. JobState에 영속화된
-        // inboxID를 그대로 복원해, 재개 후 종료 시점에도 inbox cleanup 가능.
-        jobs[job.id] = PendingJob(
-            id: job.id,
-            filename: job.filename,
-            totalPages: job.totalPages,
-            source: source,
-            inboxID: job.inboxID
-        )
-        path = [.processing(jobID: job.id)]
     }
 
     private func handleDeeplink(_ deeplink: LumarkDeeplink) {
@@ -777,12 +762,13 @@ struct HomeView: View {
     /// App Group inbox에서 stage된 파일을 메인 앱으로 가져와 ProcessingView 진입.
     private func ingestInbox(id: UUID) {
         do {
-            let (meta, dataURL) = try AppGroup.load(id: id)
+            let (meta, dataURLs) = try AppGroup.load(id: id)
 
             let pageCount: Int
             let source: JobSource
             if meta.utiHint == "pdf" {
-                guard let doc = PDFDocument(url: dataURL), doc.pageCount > 0 else {
+                guard let pdfURL = dataURLs.first,
+                      let doc = PDFDocument(url: pdfURL), doc.pageCount > 0 else {
                     activeError = .pdfCorrupted
                     AppGroup.cleanup(id: id)
                     return
@@ -796,16 +782,24 @@ struct HomeView: View {
                     return
                 }
                 pageCount = doc.pageCount
-                source = .pdf(dataURL)
+                source = .pdf(pdfURL)
             } else {
-                pageCount = 1
-                if let data = try? Data(contentsOf: dataURL) {
-                    source = .images([data])
-                } else {
+                let datas = dataURLs.compactMap { try? Data(contentsOf: $0) }
+                guard !datas.isEmpty else {
                     activeError = .wrapped(code: "IMG-READ", message: "이미지를 읽을 수 없어요.")
                     AppGroup.cleanup(id: id)
                     return
                 }
+                guard datas.count <= maxPagesPerConversion else {
+                    activeError = .wrapped(
+                        code: "PAGE-LIMIT",
+                        message: "한 번에 최대 \(maxPagesPerConversion)페이지까지 변환할 수 있어요. (현재 \(datas.count)페이지)"
+                    )
+                    AppGroup.cleanup(id: id)
+                    return
+                }
+                pageCount = datas.count
+                source = .images(datas)
             }
 
             // inboxID를 PendingJob에 묶어두고 cleanup은 processing 완료/취소 시점에.

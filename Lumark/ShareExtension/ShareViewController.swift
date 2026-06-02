@@ -63,7 +63,7 @@ class ShareViewController: UIViewController {
     private func handleConvert(result: Result<[UUID], Error>) {
         switch result {
         case .success(let ids):
-            // 받은 inbox ID 중 첫 항목으로 deeplink — v0.1은 단일 항목만 처리
+            // 한 번의 공유 = 하나의 inbox 항목(이미지면 멀티페이지). 그 단일 ID로 deeplink.
             guard let firstID = ids.first,
                   let url = LumarkDeeplink.importInbox(id: firstID).toURL() else {
                 completeAndDismiss(success: false)

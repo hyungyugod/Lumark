@@ -61,6 +61,7 @@ struct ResultView: View {
     // 퀴즈
     @State private var isGeneratingQuiz = false
     @State private var showingStudy = false
+    @State private var showingSettings = false
 
     /// 이 Note가 SwiftData 컨테이너에 이미 영속화돼있는가.
     /// 영속화 안 됐으면 저장 버튼 노출.
@@ -227,7 +228,16 @@ struct ResultView: View {
                     .presentationDetents([.medium, .large])
             }
         }
-        .errorAlert(error: $activeError)
+        .sheet(isPresented: $showingSettings) {
+            SettingsView()
+        }
+        .errorAlert(error: $activeError) { action in
+            // "내 키로 전환"을 눌렀는데 아직 Gemini 키가 없으면 바로 설정으로 안내한다.
+            // (engine 전환만으로는 키가 없어 못 쓰므로.) 키가 있으면 그대로 전환되어 닫힌다.
+            if action == .switchToOwnKey, !OCRPreferences.shared.hasGeminiKey {
+                showingSettings = true
+            }
+        }
     }
 
     // MARK: - Nav

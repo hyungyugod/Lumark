@@ -20,6 +20,7 @@ struct SettingsView: View {
     @State private var showingKeyGuide = false
     @State private var showingSignIn = false
     @State private var showingDeleteAccount = false
+    @State private var showingDeleteError = false
     @Environment(\.dismiss) private var dismiss
     @FocusState private var focusedColor: ColorCategory?
     @FocusState private var geminiKeyFocused: Bool
@@ -59,11 +60,17 @@ struct SettingsView: View {
                 Button("삭제", role: .destructive) {
                     Task {
                         if await auth.deleteAccount() { dismiss() }
+                        else { showingDeleteError = true }
                     }
                 }
                 Button("취소", role: .cancel) {}
             } message: {
                 Text("계정과 크레딧이 영구 삭제돼요. 되돌릴 수 없어요. (기기에 저장된 노트는 그대로 남아요.)")
+            }
+            .alert("계정 삭제 실패", isPresented: $showingDeleteError) {
+                Button("확인", role: .cancel) {}
+            } message: {
+                Text(auth.errorMessage ?? "계정을 삭제하지 못했어요. 네트워크를 확인하고 다시 시도해주세요.")
             }
             .task {
                 if auth.isSignedIn { await auth.refreshCredits() }

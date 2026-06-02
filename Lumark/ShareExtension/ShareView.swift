@@ -173,15 +173,11 @@ struct ShareView: View {
         isConverting = true
 
         Task {
-            var ids: [UUID] = []
             do {
-                for input in inputs {
-                    let id = try await stage(input)
-                    ids.append(id)
-                }
+                let id = try await stageInputs()
                 await MainActor.run {
                     isConverting = false
-                    onConvert(.success(ids))
+                    onConvert(.success([id]))
                 }
             } catch {
                 await MainActor.run {
@@ -193,8 +189,36 @@ struct ShareView: View {
         }
     }
 
-    private func stage(_ input: ShareInput) async throws -> UUID {
-        // NSItemProvider → Data
+    /// 입력을 하나의 inbox 항목으로 stage하고 단일 ID를 반환.
+    /// 이미지가 있으면 전부 묶어 멀티페이지 노트로, 없으면 첫 PDF를 stage한다.
+    /// (한 번의 공유 = 한 개의 노트. 여러 ID를 흘려 inbox에 누수시키지 않음.)
+    private func stageInputs() async throws -> UUID {
+        let images = inputs.filter { !$0.isPDF }
+        if !images.isEmpty {
+            // 한 장씩 로드→디스크 기록→해제. 여러 장을 동시에 메모리에 들지 않는다.
+            let batchID = UUID()
+            var pageNames: [String] = []
+            var firstName = "공유받은 이미지"
+            for (idx, input) in images.enumerated() {
+                let (data, name) = try await loadData(from: input)
+                if idx == 0 { firstName = name }
+                let pageName = try AppGroup.stageImagePage(batchID: batchID, pageIndex: idx, data: data)
+                pageNames.append(pageName)
+            }
+            try AppGroup.finalizeImageBatch(batchID: batchID, originalFilename: firstName, pageFilenames: pageNames)
+            return batchID
+        }
+        // 이미지가 없으면 첫 PDF (PDF는 그 자체로 멀티페이지 문서).
+        guard let pdf = inputs.first(where: { $0.isPDF }) else {
+            throw NSError(domain: "share", code: 3,
+                          userInfo: [NSLocalizedDescriptionKey: "지원하는 파일이 없어요"])
+        }
+        let (data, filename) = try await loadData(from: pdf)
+        return try AppGroup.stage(data: data, originalFilename: filename, isPDF: true)
+    }
+
+    /// NSItemProvider → (Data, 파일명). 색인은 호출부에서.
+    private func loadData(from input: ShareInput) async throws -> (Data, String) {
         let typeIdentifier: String = input.isPDF
             ? UTType.pdf.identifier
             : UTType.image.identifier
@@ -206,13 +230,7 @@ struct ShareView: View {
             }
         }
 
-        let (data, filename) = try extractData(from: item, fallback: input.isPDF ? "공유받은.pdf" : "공유받은.jpg")
-
-        return try AppGroup.stage(
-            data: data,
-            originalFilename: filename,
-            isPDF: input.isPDF
-        )
+        return try extractData(from: item, fallback: input.isPDF ? "공유받은.pdf" : "공유받은.jpg")
     }
 
     private func extractData(from item: NSSecureCoding, fallback: String) throws -> (Data, String) {

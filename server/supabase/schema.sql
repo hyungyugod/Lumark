@@ -38,7 +38,7 @@ drop policy if exists "own ledger read" on public.credit_ledger;
 create policy "own ledger read" on public.credit_ledger
   for select using (auth.uid() = user_id);
 
--- ── 4) 신규 가입 트리거: profile 생성 + 가입 보너스 100 ───────────────────────
+-- ── 4) 신규 가입 트리거: profile 생성 + 가입 보너스 200 ───────────────────────
 create or replace function public.handle_new_user()
 returns trigger
 language plpgsql security definer set search_path = public as $$
