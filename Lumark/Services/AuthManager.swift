@@ -147,29 +147,6 @@ final class AuthManager {
         }
     }
 
-    // MARK: - 카카오 로그인 (웹 OAuth)
-
-    /// 카카오 OAuth — supabase-swift가 ASWebAuthenticationSession을 띄워 처리.
-    /// 콜백 스킴은 `lumark://`(앱에 이미 등록됨). Supabase Redirect URLs 허용목록에
-    /// `lumark://login-callback` 등록 필요.
-    func signInWithKakao() async {
-        errorMessage = nil
-        isWorking = true
-        defer { isWorking = false }
-        do {
-            let s = try await Supa.client.auth.signInWithOAuth(
-                provider: .kakao,
-                redirectTo: URL(string: "lumark://login-callback")
-            )
-            session = s
-            await refreshCredits()
-        } catch {
-            // 사용자가 웹 시트를 닫은 경우는 조용히 무시.
-            if let e = error as? ASWebAuthenticationSessionError, e.code == .canceledLogin { return }
-            errorMessage = "카카오 로그인에 실패했어요: \(error.localizedDescription)"
-        }
-    }
-
     func signOut() async {
         try? await Supa.client.auth.signOut()
         session = nil

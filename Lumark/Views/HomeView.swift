@@ -303,6 +303,16 @@ struct HomeView: View {
             creditPill
 
             Button {
+                showingOnboarding = true
+            } label: {
+                Image(systemName: "questionmark.circle")
+                    .font(.system(size: 20, weight: .regular))
+                    .foregroundStyle(Palette.brown)
+                    .frame(width: 40, height: 40)
+            }
+            .accessibilityLabel("사용 설명서 다시 보기")
+
+            Button {
                 showingSettings = true
             } label: {
                 Image(systemName: "gearshape")

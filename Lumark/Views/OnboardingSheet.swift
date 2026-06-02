@@ -58,9 +58,9 @@ struct OnboardingSheet: View {
                     .tag(2)
 
                     pageView(
-                        icon: "hand.raised",
-                        title: "함께 쓰는 공유 공간이에요",
-                        body: "이곳은 개발자 HG가 제공하는 공유지예요. 모든 이용자의 하루 전체 사용량이 정해져 있어요. 전체 남은 사용량과 내 크레딧은 화면 상단에 표시돼요. 하루 한도는 매일, 내 크레딧은 매달 초기화됩니다.",
+                        icon: "heart.text.square",
+                        title: "학생을 위한 무료 공유 공간",
+                        body: "Lumark는 학생들이 AI 정리본을 무료로 쓸 수 있도록, 개발자 HG가 운영비를 부담하며 만든 공익 공간이에요. 그래서 모든 이용자의 하루 전체 사용량이 정해져 있어요. 전체 남은 사용량과 내 크레딧은 화면 상단에 표시돼요. 하루 한도는 매일, 내 크레딧은 매달 초기화됩니다.",
                         accent: Palette.brown
                     )
                     .tag(3)
