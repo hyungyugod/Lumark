@@ -19,6 +19,8 @@ final class OCRPreferences {
     static let lumarkCloudEndpoint = "https://lumark-ocr-proxy.hyungyugod.workers.dev/ocr"
     /// 같은 Worker의 퀴즈 생성 라우트.
     static let lumarkCloudQuizEndpoint = "https://lumark-ocr-proxy.hyungyugod.workers.dev/quiz"
+    /// 전체 공유 사용량 조회 라우트(카운트 증가 없음).
+    static let lumarkCloudUsageEndpoint = "https://lumark-ocr-proxy.hyungyugod.workers.dev/usage"
     static var isCloudConfigured: Bool { !lumarkCloudEndpoint.contains("CHANGE-ME") }
 
     /// Lumark Cloud 호출용 공유 앱 토큰. Worker의 `APP_TOKEN` secret과 같은 값이어야 한다.

@@ -112,9 +112,13 @@ struct ProxyOCRProvider: OCRProvider {
             throw OCRProviderError.apiError(status: http.statusCode, body: msg)
         }
 
-        // 응답이 알려준 최신 잔액을 반영.
+        // 응답이 알려준 최신 잔액 + 전체 사용량을 반영.
         if let credits = Self.creditsValue(from: data) {
             await AuthManager.shared.setCreditsFromServer(credits)
+        }
+        if let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+           let rem = obj["global_remaining"] as? Int, let cap = obj["global_cap"] as? Int {
+            await AuthManager.shared.setGlobalUsage(remaining: rem, cap: cap)
         }
         return try Self.parseSpansResponse(data: data)
     }

@@ -195,10 +195,17 @@ async function globalCapExceeded(env) {
   return null;
 }
 
-/** 과금 동작 1건 카운트(크레딧 차감 성공 후 호출). */
+/** 과금 동작 1건 카운트(크레딧 차감 성공 후 호출). 증가 후 누적값 반환(없으면 null). */
 async function bumpGlobal(env) {
-  if (!parseInt(env.GLOBAL_DAILY || "0", 10)) return;
-  await bump(env.RATE, `g:${todayKey()}`, 1);
+  if (!parseInt(env.GLOBAL_DAILY || "0", 10)) return null;
+  return await bump(env.RATE, `g:${todayKey()}`, 1);
+}
+
+/** 응답에 실어 보낼 전역 사용량 정보(남은 양 + 한도). GLOBAL_DAILY 미설정이면 빈 객체. */
+function globalInfo(env, used) {
+  const cap = parseInt(env.GLOBAL_DAILY || "0", 10);
+  if (!cap || used == null) return {};
+  return { global_remaining: Math.max(0, cap - used), global_cap: cap };
 }
 
 // ── 계정 + 크레딧 (Supabase) ────────────────────────────────
@@ -315,13 +322,13 @@ async function handleOCR(env, userId, body) {
   if (balance === -1) {
     return json(402, { error: "크레딧이 부족해요. 내일 충전되거나, 설정에서 내 Gemini 키로 쓸 수 있어요.", needed: cost });
   }
-  await bumpGlobal(env);   // 과금 동작 1건 카운트
+  const used = await bumpGlobal(env);   // 과금 동작 1건 카운트(+ 누적값)
 
   const parts = [
     { inline_data: { mime_type: "image/jpeg", data: imageBase64 } },
     { text: OCR_PROMPT },
   ];
-  const res = await callGemini(env, parts, OCR_SCHEMA, 2048);
+  const res = await callGemini(env, parts, OCR_SCHEMA, 4096);
   if (res.error) { await refundCredits(env, userId, cost, "ocr"); return res.error; }
 
   let spans = [];
@@ -331,7 +338,7 @@ async function handleOCR(env, userId, body) {
       .filter((s) => s.color === "yellow" || s.color === "orange")
       .map((s) => ({ text: s.text.trim(), color: s.color }));
   }
-  return json(200, { spans, credits: balance });
+  return json(200, { spans, credits: balance, ...globalInfo(env, used) });
 }
 
 async function handleQuiz(env, userId, body) {
@@ -352,7 +359,7 @@ async function handleQuiz(env, userId, body) {
   if (balance === -1) {
     return json(402, { error: "크레딧이 부족해요. 내일 충전되거나, 설정에서 내 Gemini 키로 쓸 수 있어요.", needed: cost });
   }
-  await bumpGlobal(env);   // 과금 동작 1건 카운트
+  const used = await bumpGlobal(env);   // 과금 동작 1건 카운트(+ 누적값)
 
   const parts = [{ text: quizPrompt(count, kind) + "\n\n---\n\n" + text }];
   const res = await callGemini(env, parts, quizSchema(kind), 4096);
@@ -369,7 +376,7 @@ async function handleQuiz(env, userId, body) {
       })
       .filter((c) => c.question !== "" && c.answer !== "");
   }
-  return json(200, { cards, credits: balance });
+  return json(200, { cards, credits: balance, ...globalInfo(env, used) });
 }
 
 // ── 진입점
@@ -380,7 +387,7 @@ export default {
 
     const url = new URL(request.url);
     const route = url.pathname;
-    if (route !== "/ocr" && route !== "/quiz") {
+    if (route !== "/ocr" && route !== "/quiz" && route !== "/usage") {
       return json(404, { error: "not found" });
     }
 
@@ -397,6 +404,13 @@ export default {
     // 로그인 사용자 검증 (Supabase JWT). 크레딧은 이 userId에 묶임.
     const auth = await authUser(env, request);
     if (auth.error) return auth.error;
+
+    // 사용량 조회 라우트 — 카운트 증가 없이 전역 남은 양만 반환(앱 새로고침용).
+    if (route === "/usage") {
+      const gcap = parseInt(env.GLOBAL_DAILY || "0", 10);
+      const gused = parseInt((await env.RATE.get(`g:${todayKey()}`)) || "0", 10);
+      return json(200, { global_remaining: Math.max(0, gcap - gused), global_cap: gcap });
+    }
 
     // 전역 일일 backstop(안전망). 읽기 전용 — 실제 카운트는 차감 성공 후.
     const cap = await globalCapExceeded(env);

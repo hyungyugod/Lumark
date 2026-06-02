@@ -19,3 +19,10 @@ enum SupabaseConfig {
     /// Auth REST 베이스 (`/auth/v1`).
     static var authURL: URL { url.appendingPathComponent("auth/v1") }
 }
+
+/// 앱에서 여는 외부 링크.
+enum AppLinks {
+    /// 개인정보 처리방침·이용약관 URL.
+    /// ⚠️ docs/privacy-policy.md 내용을 GitHub Pages/Notion 등에 올린 뒤 실제 URL로 교체하세요.
+    static let privacyPolicy = "https://hyungyugod.github.io/Lumark/privacy-policy"
+}

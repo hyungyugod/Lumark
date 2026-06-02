@@ -4,8 +4,8 @@ compatibility_date = "2026-05-01"
 
 # 전체 일일 backstop(안전망) — 계정 크레딧과 별개로 폭주 상한. 0이면 비활성.
 [vars]
-MODEL = "gemini-2.5-flash"
-GLOBAL_DAILY = "600"
+MODEL = "gemini-2.5-flash-lite"
+GLOBAL_DAILY = "3000"
 # 동작별 크레딧 비용.
 COST_OCR = "1"
 COST_QUIZ = "2"

@@ -56,13 +56,21 @@ struct OnboardingSheet: View {
                         accent: ColorCategory.orange.swatch
                     )
                     .tag(2)
+
+                    pageView(
+                        icon: "hand.raised",
+                        title: "함께 쓰는 공유 공간이에요",
+                        body: "이곳은 개발자 HG가 제공하는 공유지예요. 모든 이용자의 하루 전체 사용량이 정해져 있어요. 전체 남은 사용량과 내 크레딧은 화면 상단에 표시돼요. 하루 한도는 매일, 내 크레딧은 매달 초기화됩니다.",
+                        accent: Palette.brown
+                    )
+                    .tag(3)
                 }
                 .tabViewStyle(.page(indexDisplayMode: .never))
                 .frame(maxHeight: 380)
 
                 // 인디케이터
                 HStack(spacing: 8) {
-                    ForEach(0..<3, id: \.self) { i in
+                    ForEach(0..<4, id: \.self) { i in
                         Capsule()
                             .fill(i == page ? Palette.brown : Palette.divider)
                             .frame(width: i == page ? 22 : 8, height: 8)
@@ -75,14 +83,14 @@ struct OnboardingSheet: View {
 
                 // CTA
                 Button {
-                    if page < 2 {
+                    if page < 3 {
                         withAnimation { page += 1 }
                     } else {
                         markOnboarded()
                         onDone()
                     }
                 } label: {
-                    Text(page < 2 ? "다음" : "시작하기")
+                    Text(page < 3 ? "다음" : "시작하기")
                         .font(.system(size: 15, weight: .semibold))
                         .foregroundStyle(Palette.cream)
                         .frame(maxWidth: .infinity)

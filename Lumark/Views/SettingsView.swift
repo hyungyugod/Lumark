@@ -558,6 +558,21 @@ struct SettingsView: View {
                         .foregroundStyle(Palette.muted)
                 }
             }
+
+            Link(destination: URL(string: AppLinks.privacyPolicy)!) {
+                HStack {
+                    Image(systemName: "hand.raised")
+                        .font(.system(size: 14))
+                        .foregroundStyle(Palette.brass)
+                    Text("개인정보 처리방침·이용약관")
+                        .font(.system(size: 14))
+                        .foregroundStyle(Palette.ink2)
+                    Spacer()
+                    Image(systemName: "arrow.up.forward.square")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(Palette.muted)
+                }
+            }
         } header: {
             sectionHeader("정보", subtitle: nil)
         } footer: {

@@ -196,6 +196,7 @@ struct HomeView: View {
                 // 크레딧 잔액 펠 채우기 (Lumark Cloud + 로그인 시)
                 if ocrPrefs.engine == .lumarkCloud, auth.isSignedIn {
                     await auth.refreshCredits()
+                    await auth.refreshGlobalUsage()
                 }
             }
         }
@@ -325,6 +326,11 @@ struct HomeView: View {
                         .font(.system(size: 11))
                     Text("\(c)")
                         .font(.system(size: 13, weight: .semibold))
+                    if let g = auth.globalRemaining {
+                        Text("· 전체 \(g)")
+                            .font(.system(size: 11))
+                            .foregroundStyle(Palette.subtle)
+                    }
                 }
                 .foregroundStyle(Palette.brown)
                 .padding(.horizontal, 10)

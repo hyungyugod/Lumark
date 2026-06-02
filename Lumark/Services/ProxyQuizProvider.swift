@@ -82,10 +82,14 @@ struct ProxyQuizProvider: QuizProvider {
             throw QuizError.api(status: http.statusCode, body: String(data: data, encoding: .utf8) ?? "")
         }
 
-        // 응답이 알려준 최신 잔액 반영.
-        if let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-           let credits = obj["credits"] as? Int {
-            await AuthManager.shared.setCreditsFromServer(credits)
+        // 응답이 알려준 최신 잔액 + 전체 사용량 반영.
+        if let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+            if let credits = obj["credits"] as? Int {
+                await AuthManager.shared.setCreditsFromServer(credits)
+            }
+            if let rem = obj["global_remaining"] as? Int, let cap = obj["global_cap"] as? Int {
+                await AuthManager.shared.setGlobalUsage(remaining: rem, cap: cap)
+            }
         }
         // 프록시는 {cards:[...]}를 그대로 반환
         return try QuizPrompt.parseCards(data)

@@ -1,7 +1,7 @@
 -- Lumark — Supabase schema (accounts + credits, Path A)
 --
 -- 실행: Supabase 대시보드 → SQL Editor에 통째로 붙여넣고 Run.
--- 확정 스펙: 가입 보너스 100 + 매월 충전 100 (지속가능한 무료 한도) /
+-- 확정 스펙: 가입 보너스 100 + 매월 충전 300 (지속가능한 무료 한도) /
 --           OCR 1·페이지, 퀴즈 2·회 / 본인 키 = 무제한(여기 안 거침) / 유료 없음.
 -- 크레딧 변경은 전부 service_role(Worker)이 호출하는 RPC로만. 클라이언트는 읽기만.
 
@@ -9,7 +9,7 @@
 create table if not exists public.profiles (
   id             uuid primary key references auth.users(id) on delete cascade,
   credits        integer     not null default 100,   -- 가입 보너스
-  monthly_grant  integer     not null default 100,   -- 매월 충전 목표
+  monthly_grant  integer     not null default 300,   -- 매월 충전 목표
   last_refill_at timestamptz not null default now(),
   created_at     timestamptz not null default now()
 );

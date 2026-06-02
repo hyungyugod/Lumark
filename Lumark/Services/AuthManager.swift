@@ -25,6 +25,9 @@ final class AuthManager {
     private(set) var isWorking = false
     /// 현재 크레딧 잔액(profiles에서 읽거나 Worker 응답으로 갱신). 미조회면 nil.
     private(set) var credits: Int?
+    /// 전체(공유) 남은 사용량 + 하루 한도. Worker /usage 또는 변환 응답으로 갱신.
+    private(set) var globalRemaining: Int?
+    private(set) var globalCap: Int?
     var errorMessage: String?
 
     /// 현재 Apple 요청에 쓰인 raw nonce (검증용으로 Supabase에 전달).
@@ -72,6 +75,31 @@ final class AuthManager {
 
     /// Worker 응답이 알려준 최신 잔액을 즉시 반영(라운드트립 없이).
     func setCreditsFromServer(_ n: Int) { credits = n }
+
+    /// 변환 응답이 알려준 전체(공유) 사용량을 즉시 반영.
+    func setGlobalUsage(remaining: Int, cap: Int) {
+        globalRemaining = remaining
+        globalCap = cap
+    }
+
+    /// 전체(공유) 사용량을 Worker /usage로 새로 조회. 실패는 조용히 무시.
+    func refreshGlobalUsage() async {
+        guard let token = await freshAccessToken(),
+              let url = URL(string: OCRPreferences.lumarkCloudUsageEndpoint) else { return }
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        req.setValue(OCRPreferences.appToken, forHTTPHeaderField: "X-App-Token")
+        req.setValue(OCRPreferences.shared.deviceID, forHTTPHeaderField: "X-Device-ID")
+        req.timeoutInterval = 15
+        if let (data, _) = try? await URLSession.shared.data(for: req),
+           let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+           let rem = obj["global_remaining"] as? Int,
+           let cap = obj["global_cap"] as? Int {
+            globalRemaining = rem
+            globalCap = cap
+        }
+    }
 
     // MARK: - Apple 로그인
 
