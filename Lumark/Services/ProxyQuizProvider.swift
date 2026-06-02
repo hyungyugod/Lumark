@@ -19,6 +19,24 @@ struct ProxyQuizProvider: QuizProvider {
     }
 
     func generate(from text: String, count: Int, kind: FlashcardKind) async throws -> [QuizCard] {
+        // 콜드 스타트 등 일시 오류는 한 번 자동 재시도.
+        do {
+            return try await performGenerate(from: text, count: count, kind: kind)
+        } catch let e as QuizError where Self.isRetryable(e) {
+            try? await Task.sleep(nanoseconds: 800_000_000)
+            return try await performGenerate(from: text, count: count, kind: kind)
+        }
+    }
+
+    nonisolated static func isRetryable(_ e: QuizError) -> Bool {
+        switch e {
+        case .network, .invalidResponse: return true
+        case .api(let status, _):        return status >= 500
+        default:                         return false
+        }
+    }
+
+    private func performGenerate(from text: String, count: Int, kind: FlashcardKind) async throws -> [QuizCard] {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { throw QuizError.emptyInput }
         guard let url = URL(string: endpoint), endpoint.hasPrefix("https://") else {

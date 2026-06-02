@@ -24,7 +24,7 @@ struct ProxyOCRProvider: OCRProvider {
     nonisolated init(
         endpoint: String,
         appToken: String? = nil,
-        longSideTarget: CGFloat = 1024,   // 1024 = 2x1 Gemini 타일(이미지 토큰 절반). 1536은 2x2.
+        longSideTarget: CGFloat = 1536,   // 노랑↔주황 색 구분 정확도 위해 1536 유지(1024는 색 번짐)
         jpegQuality: CGFloat = 0.82
     ) {
         self.endpoint = endpoint
@@ -34,6 +34,25 @@ struct ProxyOCRProvider: OCRProvider {
     }
 
     func recognizePage(image: UIImage, regions: [DetectedRegion]) async throws -> [OCRSpan] {
+        // 콜드 스타트 등 일시 오류는 한 번 자동 재시도 (첫 시도 실패 → 재시도 성공 패턴 차단).
+        do {
+            return try await performOCR(image: image)
+        } catch let e as OCRProviderError where Self.isRetryable(e) {
+            try? await Task.sleep(nanoseconds: 800_000_000)
+            return try await performOCR(image: image)
+        }
+    }
+
+    /// 재시도해도 의미 있는 일시 오류만 true (네트워크/5xx/파싱). 401·402·429는 재시도 안 함.
+    nonisolated static func isRetryable(_ e: OCRProviderError) -> Bool {
+        switch e {
+        case .networkFailure, .invalidResponse: return true
+        case .apiError(let status, _):           return status >= 500
+        default:                                 return false
+        }
+    }
+
+    private func performOCR(image: UIImage) async throws -> [OCRSpan] {
         guard let url = URL(string: endpoint), endpoint.hasPrefix("https://") else {
             throw OCRProviderError.invalidResponse(detail: "Lumark Cloud 엔드포인트가 설정되지 않았어요. (개발자: OCRPreferences.lumarkCloudEndpoint 확인)")
         }
