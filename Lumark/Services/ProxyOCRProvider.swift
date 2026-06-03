@@ -34,12 +34,18 @@ struct ProxyOCRProvider: OCRProvider {
     }
 
     func recognizePage(image: UIImage, regions: [DetectedRegion]) async throws -> [OCRSpan] {
-        // 콜드 스타트 등 일시 오류는 한 번 자동 재시도 (첫 시도 실패 → 재시도 성공 패턴 차단).
-        do {
-            return try await performOCR(image: image)
-        } catch let e as OCRProviderError where Self.isRetryable(e) {
-            try? await Task.sleep(nanoseconds: 800_000_000)
-            return try await performOCR(image: image)
+        // 콜드 스타트/끊긴 연결 등 일시 오류는 백오프를 두고 최대 2회 자동 재시도.
+        // (첫 요청이 잠든 워커나 죽은 연결을 만나 -1005로 끊기는 "첫 시도 실패 → 재시도 성공"
+        //  패턴 차단. 두 번째 백오프는 iOS가 죽은 연결을 버리고 새로 열 시간을 준다.)
+        let backoffsNs: [UInt64] = [700_000_000, 1_800_000_000]   // 0.7s, 1.8s
+        var attempt = 0
+        while true {
+            do {
+                return try await performOCR(image: image)
+            } catch let e as OCRProviderError where Self.isRetryable(e) && attempt < backoffsNs.count {
+                try? await Task.sleep(nanoseconds: backoffsNs[attempt])
+                attempt += 1
+            }
         }
     }
 

@@ -127,9 +127,13 @@ struct ProcessingView: View {
         .errorAlert(error: Binding(
             get: { vm.error },
             set: { vm.error = $0 }
-        )) { _ in
-            // 어떤 액션이든 — 현재 화면을 닫는다. 부분 성공 같은 케이스는
-            // 향후 .partialSuccess일 때만 onFinish로 분기.
+        )) { action in
+            // '다시 시도'는 화면을 닫지 않고 같은 잡을 처음부터 재실행
+            // (워밍업·연결이 데워진 뒤라 대부분 성공). 그 외 액션은 화면을 닫는다.
+            if action == .retry {
+                vm.start()
+                return
+            }
             guard !handled else { return }
             handled = true
             onCancel()

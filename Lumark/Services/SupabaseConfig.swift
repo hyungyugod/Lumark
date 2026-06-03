@@ -22,7 +22,7 @@ enum SupabaseConfig {
 
 /// 앱에서 여는 외부 링크.
 enum AppLinks {
-    /// 개인정보 처리방침·이용약관 URL.
-    /// ⚠️ docs/privacy-policy.md 내용을 GitHub Pages/Notion 등에 올린 뒤 실제 URL로 교체하세요.
-    static let privacyPolicy = "https://hyungyugod.github.io/Lumark/privacy-policy"
+    /// 개인정보 처리방침·이용약관 URL. docs/privacy-policy.md 내용을 Notion에 게시한 공개 페이지.
+    /// 내용 수정 시: Notion 페이지를 편집(재게시 불필요)하고 docs/privacy-policy.md도 함께 갱신.
+    static let privacyPolicy = "https://weak-curler-42e.notion.site/Lumark-374e5a0eed5381d195f4fa7a3e2300b4"
 }

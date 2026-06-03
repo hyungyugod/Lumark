@@ -19,12 +19,16 @@ struct ProxyQuizProvider: QuizProvider {
     }
 
     func generate(from text: String, count: Int, kind: FlashcardKind) async throws -> [QuizCard] {
-        // 콜드 스타트 등 일시 오류는 한 번 자동 재시도.
-        do {
-            return try await performGenerate(from: text, count: count, kind: kind)
-        } catch let e as QuizError where Self.isRetryable(e) {
-            try? await Task.sleep(nanoseconds: 800_000_000)
-            return try await performGenerate(from: text, count: count, kind: kind)
+        // 콜드 스타트/끊긴 연결 등 일시 오류는 백오프를 두고 최대 2회 자동 재시도.
+        let backoffsNs: [UInt64] = [700_000_000, 1_800_000_000]   // 0.7s, 1.8s
+        var attempt = 0
+        while true {
+            do {
+                return try await performGenerate(from: text, count: count, kind: kind)
+            } catch let e as QuizError where Self.isRetryable(e) && attempt < backoffsNs.count {
+                try? await Task.sleep(nanoseconds: backoffsNs[attempt])
+                attempt += 1
+            }
         }
     }
 

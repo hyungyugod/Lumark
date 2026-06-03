@@ -99,7 +99,7 @@ extension LumarkError {
         case .appGroupAccessFailed:    return "공유 설정 오류"
         case .unsupportedFormat:       return "지원하지 않는 형식"
         case .partialSuccess:          return "일부만 변환됐어요"
-        case .wrapped(_, _):           return "오류가 발생했어요"
+        case .wrapped(let code, _):    return code == "OCR-CLOUD" ? "연결이 불안정해요" : "오류가 발생했어요"
         }
     }
 
@@ -162,8 +162,11 @@ extension LumarkError {
         case .partialSuccess:
             return [.viewResult]
         case .wrapped(let code, _):
-            // 크레딧 부족·전역 한도면 본인 키 전환 탈출구 제공.
-            return (code == "CREDITS" || code == "BUSY") ? [.switchToOwnKey, .dismiss] : [.dismiss]
+            // 크레딧 부족·전역 한도면 본인 키 전환 탈출구.
+            if code == "CREDITS" || code == "BUSY" { return [.switchToOwnKey, .dismiss] }
+            // 일시적 연결 오류(OCR-CLOUD)는 '다시 시도'를 1순위로.
+            if code == "OCR-CLOUD" { return [.retry, .dismiss] }
+            return [.dismiss]
         }
     }
 

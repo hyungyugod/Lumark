@@ -141,6 +141,14 @@ final class ProcessingViewModel {
 
     private func runReal(source: JobSource) async {
         do {
+            // 0. Lumark Cloud 워밍업 — 첫 OCR 요청이 잠든 워커나 끊긴 연결(앱이 잠깐
+            //    쉬면 URLSession 풀의 연결이 죽어 첫 요청이 -1005로 끊긴다)을 만나는 걸
+            //    막는다. /usage는 크레딧 0·읽기 전용이라 안전. 아래 페이지 분리·형광펜
+            //    검출이 도는 동안 백그라운드로 워커를 깨우고, OCR 직전에 완료를 기다린다.
+            let warmup: Task<Void, Never>? = OCRPreferences.shared.engine == .lumarkCloud
+                ? Task { await AuthManager.shared.refreshGlobalUsage() }
+                : nil
+
             // 1. 페이지 분리
             setStage(.splittingPages)
             let pages: [UIImage] = try await renderPages(from: source)
@@ -177,10 +185,14 @@ final class ProcessingViewModel {
             //    HSV 색 0개 페이지는 OCR 스킵 → 외부 API 호출/토큰 절약.
             setStage(.ocr)
             currentPage = 0
+            // 첫 OCR 직전에 워밍업 완료를 기다린다(보통 위 단계 도는 동안 이미 끝나 즉시 통과).
+            // 첫 페이지가 확실히 '데워진' 연결을 타서 "첫 시도 실패"를 없앤다.
+            await warmup?.value
             let ocrProvider = OCRPreferences.shared.selectedProvider()
             var perPageSpans: [[OCRSpan]] = []
             perPageSpans.reserveCapacity(pages.count)
             var lastOCRProviderError: OCRProviderError?
+            var failedIndices: [Int] = []   // 일시 오류로 1차 실패한 페이지 — 끝에서 재시도
             for (idx, regions) in perPageRegions.enumerated() {
                 if Task.isCancelled { return }
                 currentPage = idx + 1
@@ -203,9 +215,10 @@ final class ProcessingViewModel {
                             throw LumarkError.wrapped(code: "BUSY", message: providerError.errorDescription ?? "오늘 무료 사용량이 다 찼어요. 내일 다시 이용해 주세요.")
                         default:
                             // 네트워크/API 일시 오류 — 이 페이지만 건너뛰고 계속(spec §8 부분 성공).
-                            // 앞서 성공한 페이지의 크레딧·결과는 보존됨.
+                            // 앞서 성공한 페이지의 크레딧·결과는 보존됨. 끝에서 한 번 더 재시도.
                             lastOCRProviderError = providerError
                             perPageSpans.append([])
+                            failedIndices.append(idx)
                             failedPageCount += 1
                         }
                     }
@@ -215,15 +228,35 @@ final class ProcessingViewModel {
                 overallProgress = baseProgress(.ocr) + frac * stagePortion(.ocr)
             }
 
+            // 1차에서 일시 오류로 실패한 페이지는 잠깐 쉬고 한 번 더 (워커·연결이 데워진
+            // 뒤라 대부분 이때 성공 → "10장 중 2장 실패" 감소). recognizePage 자체도
+            // 내부 재시도를 하므로 실패 페이지는 총 두 라운드의 기회를 얻는다.
+            if !failedIndices.isEmpty && !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 1_500_000_000)
+                for idx in failedIndices {
+                    if Task.isCancelled { break }
+                    currentPage = idx + 1
+                    do {
+                        perPageSpans[idx] = try await ocrProvider.recognizePage(
+                            image: pages[idx], regions: perPageRegions[idx]
+                        )
+                        failedPageCount -= 1
+                    } catch {
+                        // 여전히 실패 — 부분 성공 결과를 그대로 유지(데이터 안 잃음).
+                    }
+                }
+            }
+
             // 추출된 텍스트가 하나도 없으면 spec §8 .ocrAllEmpty
             let totalRecognized = perPageSpans.reduce(0) { acc, spans in
                 acc + spans.filter { !$0.text.isEmpty }.count
             }
             guard totalRecognized > 0 else {
-                if let lastOCRProviderError {
+                if lastOCRProviderError != nil {
+                    // 일시적 연결 문제일 가능성이 큼 — 한 번 더 시도하면 대부분 해결.
                     throw LumarkError.wrapped(
                         code: "OCR-CLOUD",
-                        message: lastOCRProviderError.errorDescription ?? "Lumark Cloud OCR에 실패했어요."
+                        message: "서버 연결이 잠깐 불안정했어요. 아래 '다시 시도'를 한 번 더 누르면 대부분 바로 돼요."
                     )
                 }
                 throw LumarkError.ocrAllEmpty
