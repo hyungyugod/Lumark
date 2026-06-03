@@ -212,12 +212,15 @@ struct HomeView: View {
                     jobID: jobID,
                     source: job.source,
                     onCancel: {
-                        finalizeJob(jobID, success: false)
+                        // 화면을 먼저 빠져나간 뒤 정리 — jobs가 비는 순간 .processing이
+                        // 빈 상태로 잠깐 다시 평가되는 걸 막는다.
                         path.removeAll()
+                        finalizeJob(jobID, success: false)
                     },
                     onFinish: { note, failedPages in
-                        finalizeJob(jobID, success: true)
+                        // 결과 화면으로 먼저 이동 후 작업 정리(위와 같은 이유).
                         openFreshResult(note, failedPages: failedPages)
+                        finalizeJob(jobID, success: true)
                     }
                 )
             } else {
@@ -658,20 +661,23 @@ struct HomeView: View {
             showingCloudChoice = true
             return
         }
-        // 크레딧 사전 체크 — 잔액을 새로고침한 뒤 페이지 수만큼 있는지 확인.
-        // (부족한데 시작하면 일부 페이지만 처리되고 도중에 402로 깨짐)
-        Task {
-            await AuthManager.shared.refreshCredits()
-            if let c = AuthManager.shared.credits, c < totalPages {
-                cleanupTemporarySource(source, inboxID: inboxID)
-                activeError = .wrapped(
-                    code: "CREDITS",
-                    message: "이 정리본은 약 \(totalPages)크레딧이 필요한데 지금 \(c)개 남았어요. 다음 달에 충전되거나, 설정 → OCR 엔진에서 '내 Gemini 키'로 바꾸면 Lumark 크레딧 없이 쓸 수 있어요."
-                )
-            } else {
-                beginJob(filename: filename, totalPages: totalPages, source: source, inboxID: inboxID)
-            }
+        // 크레딧 사전 체크는 '캐시된' 잔액으로 즉시 한다.
+        // ⚠️ 과거 버그: await refreshCredits() 뒤에서 beginJob을 호출하면, 그 continuation이
+        //    메인 트랜잭션(또는 메인 스레드) 밖에서 돌아 jobs[id] 등록과 path 이동이 한 번에
+        //    안 묶였다. 그 사이 NavigationStack이 .processing을 먼저 그려 jobs[id]를 못 찾고
+        //    "연결이 끊겼어요(작업 없음)" 화면을 띄웠다(클라우드 첫 시도만 실패, 오프라인은 정상).
+        //    → 동기로 처리해 jobs 등록과 화면 이동을 한 트랜잭션·메인스레드에서 보장.
+        //    (잔액은 서버도 강제하므로 캐시 기준 사전 체크로 충분.)
+        if let c = AuthManager.shared.credits, c < totalPages {
+            cleanupTemporarySource(source, inboxID: inboxID)
+            activeError = .wrapped(
+                code: "CREDITS",
+                message: "이 정리본은 약 \(totalPages)크레딧이 필요한데 지금 \(c)개 남았어요. 다음 달에 충전되거나, 설정 → OCR 엔진에서 '내 Gemini 키'로 바꾸면 Lumark 크레딧 없이 쓸 수 있어요."
+            )
+            return
         }
+        Task { await AuthManager.shared.refreshCredits() }   // 잔액 배지만 백그라운드 갱신(네비게이션 안 막음)
+        beginJob(filename: filename, totalPages: totalPages, source: source, inboxID: inboxID)
     }
 
     /// "오프라인으로 변환" 선택 — 엔진을 Apple Vision으로 바꾸고 보관한 잡을 바로 진행.
