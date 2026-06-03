@@ -8,7 +8,7 @@
 //  Apple 로그인 흐름:
 //    1) 요청 전 nonce 생성 → raw는 보관, sha256(raw)를 Apple 요청에 첨부
 //    2) Apple이 idToken 발급 → Supabase signInWithIdToken(.apple, idToken, nonce=raw)
-//    3) Supabase가 토큰 검증 후 세션 발급(+신규면 profiles 트리거로 가입 보너스 100크레딧)
+//    3) Supabase가 토큰 검증 후 세션 발급(+신규면 profiles 트리거로 가입 보너스 지급)
 //
 
 import Foundation
@@ -90,7 +90,6 @@ final class AuthManager {
         req.httpMethod = "POST"
         req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         req.setValue(OCRPreferences.appToken, forHTTPHeaderField: "X-App-Token")
-        req.setValue(OCRPreferences.shared.deviceID, forHTTPHeaderField: "X-Device-ID")
         req.timeoutInterval = 15
         if let (data, _) = try? await URLSession.shared.data(for: req),
            let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],

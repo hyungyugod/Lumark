@@ -14,7 +14,7 @@ struct ResultActionBar: View {
     var onExportPDF: () -> Void
     var quizSystemImage: String
     var quizLabel: String
-    /// 퀴즈 생성에 드는 크레딧(Lumark Cloud일 때만). nil이면 배지 숨김(본인 키=무제한 또는 보기 모드).
+    /// 퀴즈 생성에 드는 크레딧(Lumark Cloud일 때만). nil이면 배지 숨김(본인 키 또는 보기 모드).
     var quizCost: Int?
     var onQuiz: () -> Void
 

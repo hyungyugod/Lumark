@@ -2,7 +2,7 @@
  * Lumark OCR + Quiz Proxy — Cloudflare Worker
  *
  * 목적: Gemini API 키를 클라이언트(iOS 앱)에 노출하지 않고 서버가 대신 호출.
- *       기기당/전체 일일 한도로 비용 폭주 방지.
+ *       계정 크레딧/전체 일일 한도로 비용 폭주 방지.
  *
  * 라우트:
  *   POST /ocr   { image_base64 }        → { spans: [{text,color}], credits }
@@ -292,7 +292,8 @@ async function callGemini(env, parts, schema, maxOutputTokens) {
 
   if (!resp.ok) {
     const txt = await resp.text();
-    return { error: json(resp.status, { error: "Gemini 오류", detail: txt.slice(0, 300) }) };
+    console.warn("Gemini request failed", resp.status, txt.slice(0, 300));
+    return { error: json(resp.status === 429 ? 429 : 502, { error: "AI 처리에 실패했어요. 잠시 후 다시 시도해주세요." }) };
   }
   try {
     const data = await resp.json();
@@ -322,14 +323,13 @@ async function handleOCR(env, userId, body) {
   if (balance === -1) {
     return json(402, { error: "크레딧이 부족해요. 내일 충전되거나, 설정에서 내 Gemini 키로 쓸 수 있어요.", needed: cost });
   }
-  const used = await bumpGlobal(env);   // 과금 동작 1건 카운트(+ 누적값)
-
   const parts = [
     { inline_data: { mime_type: "image/jpeg", data: imageBase64 } },
     { text: OCR_PROMPT },
   ];
   const res = await callGemini(env, parts, OCR_SCHEMA, 4096);
   if (res.error) { await refundCredits(env, userId, cost, "ocr"); return res.error; }
+  const used = await bumpGlobal(env);   // AI 처리 성공 후 전역 사용량 1건 카운트(+ 누적값)
 
   let spans = [];
   if (Array.isArray(res.parsed?.spans)) {
@@ -359,11 +359,10 @@ async function handleQuiz(env, userId, body) {
   if (balance === -1) {
     return json(402, { error: "크레딧이 부족해요. 내일 충전되거나, 설정에서 내 Gemini 키로 쓸 수 있어요.", needed: cost });
   }
-  const used = await bumpGlobal(env);   // 과금 동작 1건 카운트(+ 누적값)
-
   const parts = [{ text: quizPrompt(count, kind) + "\n\n---\n\n" + text }];
   const res = await callGemini(env, parts, quizSchema(kind), 4096);
   if (res.error) { await refundCredits(env, userId, cost, "quiz"); return res.error; }
+  const used = await bumpGlobal(env);   // AI 처리 성공 후 전역 사용량 1건 카운트(+ 누적값)
 
   let cards = [];
   if (Array.isArray(res.parsed?.cards)) {

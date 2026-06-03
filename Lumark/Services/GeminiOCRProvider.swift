@@ -255,7 +255,7 @@ struct GeminiOCRProvider: OCRProvider {
         if lastStatus == 429 {
             throw OCRProviderError.apiError(
                 status: 429,
-                body: "무료 티어 quota 초과로 보입니다. Google AI Studio에서 billing(Tier 1)을 켜거나 설정에서 다른 모델로 바꿔보세요.\n원본: " + lastBody
+                body: "Google API 할당량 또는 모델 권한 문제로 보입니다. Google AI Studio에서 키·할당량·모델 설정을 확인하거나 설정에서 다른 모델로 바꿔보세요."
             )
         }
         throw OCRProviderError.apiError(status: lastStatus, body: lastBody)

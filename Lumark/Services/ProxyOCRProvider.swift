@@ -6,9 +6,9 @@
 //
 //  앱은 Gemini 키를 모른다. 다운샘플한 페이지 이미지를 프록시로 보내면,
 //  프록시가 서버에 보관된 키로 Gemini를 호출하고 spans를 돌려준다.
-//  기기당/전체 일일 한도는 프록시가 강제 (비용 상한).
+//  계정 크레딧/전체 일일 한도는 프록시가 강제 (비용 상한).
 //
-//  요청:  POST {endpoint}  body { "image_base64": "..." }  header X-Device-ID
+//  요청:  POST {endpoint}  body { "image_base64": "..." }
 //  응답:  { "spans": [{ "text", "color" }] }  / 429 한도초과 / 기타 오류
 //
 
@@ -84,7 +84,6 @@ struct ProxyOCRProvider: OCRProvider {
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        request.setValue(OCRPreferences.shared.deviceID, forHTTPHeaderField: "X-Device-ID")
         if let appToken, !appToken.isEmpty {
             request.setValue(appToken, forHTTPHeaderField: "X-App-Token")
         }

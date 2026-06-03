@@ -1,6 +1,6 @@
 # Lumark OCR Proxy (Cloudflare Worker)
 
-Gemini API 키를 앱에 넣지 않고 서버가 대신 호출한다. 기기당/전체 일일 페이지
+Gemini API 키를 앱에 넣지 않고 서버가 대신 호출한다. 계정 크레딧과 전체 일일
 한도로 비용 폭주를 막는다. Cloudflare Workers 무료 티어 (카드 등록 불필요,
 하루 10만 요청)로 충분하다.
 
@@ -48,7 +48,6 @@ static let lumarkCloudEndpoint = "https://lumark-ocr-proxy.<your-subdomain>.work
 ## 비용 한도 조정
 
 `wrangler.toml`의 vars로 제어 (수정 후 `npx wrangler deploy` 재실행):
-- `PER_DEVICE_DAILY` — 기기당 하루 페이지 수 (기본 60)
 - `GLOBAL_DAILY` — 전체 하루 페이지 수 (기본 1500) ← 청구서 상한의 핵심
 - `MODEL` — Gemini 모델 (기본 gemini-2.5-flash-lite)
 
@@ -64,7 +63,8 @@ Gemini 사용량은 Google AI Studio → Usage.
 npx wrangler dev
 # 다른 터미널에서:
 curl -X POST http://localhost:8787/ocr \
-  -H "X-Device-ID: test-device-1234" \
+  -H "Authorization: Bearer <Supabase JWT>" \
+  -H "X-App-Token: <APP_TOKEN secret과 같은 값>" \
   -H "Content-Type: application/json" \
   -d '{"image_base64":"<base64 jpeg>"}'
 ```

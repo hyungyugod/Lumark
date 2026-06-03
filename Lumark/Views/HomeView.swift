@@ -113,8 +113,7 @@ struct HomeView: View {
             }
             .sheet(isPresented: $showingSignIn, onDismiss: {
                 // 로그인 안 하고 닫았으면 보관한 잡 정리.
-                if !auth.isSignedIn, let id = pendingCloudJob?.inboxID { AppGroup.cleanup(id: id) }
-                if !auth.isSignedIn { pendingCloudJob = nil }
+                if !auth.isSignedIn { discardPendingCloudJob() }
             }) {
                 SignInView(onSignedIn: {
                     showingSignIn = false
@@ -129,8 +128,7 @@ struct HomeView: View {
                 Button("Apple로 로그인하고 만들기") { showingSignIn = true }
                 Button("오프라인으로 변환 (로그인 없이)") { convertOfflineFromPending() }
                 Button("취소", role: .cancel) {
-                    if let id = pendingCloudJob?.inboxID { AppGroup.cleanup(id: id) }
-                    pendingCloudJob = nil
+                    discardPendingCloudJob()
                 }
             } message: {
                 Text("로그인하면 매달 무료 크레딧으로 더 정확하게 변환해요. 또는 로그인 없이 이 기기에서 바로 변환할 수 있어요(Apple Vision · 오프라인).")
@@ -190,8 +188,7 @@ struct HomeView: View {
                     handleDeeplink(dl)
                     router.pendingDeeplink = nil
                 }
-                // 30분 이상 묵은 작업은 정리하고, 중단된(미완료) 작업은 폐기
-                JobStateStore.shared.purgeStale()
+                // 중단된(미완료) 작업은 폐기하고 임시 파일도 함께 정리
                 discardInterruptedJobs()
                 // 크레딧 잔액 펠 채우기 (Lumark Cloud + 로그인 시)
                 if ocrPrefs.engine == .lumarkCloud, auth.isSignedIn {
@@ -259,10 +256,11 @@ struct HomeView: View {
     /// `JobStateStore.finish`의 단일 호출 지점을 view layer로 통일한다.
     /// (ProcessingViewModel은 진행 상태 update만 담당, lifecycle 종료는 view가 결정.)
     private func finalizeJob(_ jobID: UUID, success: Bool) {
-        JobStateStore.shared.finish(id: jobID)
-        if let inboxID = jobs[jobID]?.inboxID {
-            AppGroup.cleanup(id: inboxID)
+        if let job = jobs[jobID] {
+            cleanupTemporarySource(job.source, inboxID: job.inboxID)
+            cleanupJobCache(jobID: jobID)
         }
+        JobStateStore.shared.finish(id: jobID)
         jobs.removeValue(forKey: jobID)
         _ = success // (현재는 분기 동일, 향후 telemetry 등을 위한 자리)
     }
@@ -665,10 +663,10 @@ struct HomeView: View {
         Task {
             await AuthManager.shared.refreshCredits()
             if let c = AuthManager.shared.credits, c < totalPages {
-                if let inboxID { AppGroup.cleanup(id: inboxID) }
+                cleanupTemporarySource(source, inboxID: inboxID)
                 activeError = .wrapped(
                     code: "CREDITS",
-                    message: "이 정리본은 약 \(totalPages)크레딧이 필요한데 지금 \(c)개 남았어요. 다음 달에 충전되거나, 설정 → OCR 엔진에서 '내 Gemini 키'로 바꾸면 크레딧 없이 무제한으로 쓸 수 있어요."
+                    message: "이 정리본은 약 \(totalPages)크레딧이 필요한데 지금 \(c)개 남았어요. 다음 달에 충전되거나, 설정 → OCR 엔진에서 '내 Gemini 키'로 바꾸면 Lumark 크레딧 없이 쓸 수 있어요."
                 )
             } else {
                 beginJob(filename: filename, totalPages: totalPages, source: source, inboxID: inboxID)
@@ -689,6 +687,12 @@ struct HomeView: View {
         guard auth.isSignedIn, let j = pendingCloudJob else { return }
         pendingCloudJob = nil
         startProcessing(filename: j.filename, totalPages: j.totalPages, source: j.source, inboxID: j.inboxID)
+    }
+
+    private func discardPendingCloudJob() {
+        guard let job = pendingCloudJob else { return }
+        cleanupTemporarySource(job.source, inboxID: job.inboxID)
+        pendingCloudJob = nil
     }
 
     /// 실제 잡 등록 + 영속화 + 처리 화면 진입. (게이트는 startProcessing에서 끝냄)
@@ -758,14 +762,37 @@ struct HomeView: View {
         for job in interrupted {
             if let inboxID = job.inboxID {
                 AppGroup.cleanup(id: inboxID)
+            } else if let stagedURL = job.stagedURL {
+                removeTemporaryFile(at: stagedURL)
             }
             // 이미지 변환용 임시 디렉토리(jobs/{id}/) 정리.
-            let jobDir = FileManager.default.temporaryDirectory
-                .appendingPathComponent("jobs", isDirectory: true)
-                .appendingPathComponent(job.id.uuidString, isDirectory: true)
-            try? FileManager.default.removeItem(at: jobDir)
+            cleanupJobCache(jobID: job.id)
             JobStateStore.shared.finish(id: job.id)
         }
+    }
+
+    private func cleanupTemporarySource(_ source: JobSource, inboxID: UUID?) {
+        if let inboxID {
+            AppGroup.cleanup(id: inboxID)
+            return
+        }
+        if case .pdf(let url) = source {
+            removeTemporaryFile(at: url)
+        }
+    }
+
+    private func cleanupJobCache(jobID: UUID) {
+        let jobDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("jobs", isDirectory: true)
+            .appendingPathComponent(jobID.uuidString, isDirectory: true)
+        try? FileManager.default.removeItem(at: jobDir)
+    }
+
+    private func removeTemporaryFile(at url: URL) {
+        let tmpPath = FileManager.default.temporaryDirectory.standardizedFileURL.path
+        let path = url.standardizedFileURL.path
+        guard path.hasPrefix(tmpPath) else { return }
+        try? FileManager.default.removeItem(at: url)
     }
 
     private func handleDeeplink(_ deeplink: LumarkDeeplink) {
@@ -846,6 +873,9 @@ struct HomeView: View {
                 )
             }
         case .cancel, .dismiss:
+            if let big = pendingLargeFile {
+                removeTemporaryFile(at: big.url)
+            }
             pendingLargeFile = nil
         case .openSystemSettings:
             PermissionService.openSystemSettings()

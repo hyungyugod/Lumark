@@ -6,12 +6,12 @@
 - 무료 키리스 프록시(`lumark-ocr-proxy`)의 **비용 통제**가 핵심 동기.
 - 계정 로그인 → 계정별 **크레딧** → 정리본/퀴즈 생성 시 차감 → 공정·제한적 무료 사용.
 - **1인 1계정** 지향(완벽 강제는 아님, 현실적 상한).
-- 더 쓰려면 **본인 Gemini 키**(무제한, 프록시 우회) — *이미 구현됨*.
+- 더 쓰려면 **본인 Gemini 키**(Lumark 크레딧 없이 프록시 우회, Google 계정 정책 적용) — *이미 구현됨*.
 
 ## 2. 현재 아키텍처 (변경 전)
 - iOS(SwiftData) → CF Worker `lumark-ocr-proxy` → **AI Gateway** → Gemini.
-- Worker: KV(RATE) 기기당/전체 일일 한도, `APP_TOKEN` 헤더 게이트, `GEMINI_KEY` 시크릿.
-- 식별: 익명 `X-Device-ID`(위조 가능) → 그래서 계정이 필요.
+- Worker: 계정 크레딧/전체 일일 한도, `APP_TOKEN` 헤더 게이트, `GEMINI_KEY` 시크릿.
+- 식별: Supabase JWT 기반 사용자 계정. 과거 `X-Device-ID` 계획은 제거.
 - **AI Gateway 경유가 핵심**: Worker 직접 egress가 Gemini 미지원 리전("User location not supported")으로 잡히는 문제를 우회. → **이 Worker는 유지하는 게 안전**(아래 Path 선택의 전제).
 
 ## 3. 아키텍처 결정 (가장 중요)
@@ -44,7 +44,7 @@
   │        │            └ 실패 시 refund_credits (환불)
   │        └──────→ 결과(spans/cards) 반환
   │
-  └─ (본인 키 경로) 앱 → Gemini 직접 (Worker/크레딧 무관, 무제한)
+  └─ (본인 키 경로) 앱 → Gemini 직접 (Worker/크레딧 무관, Google 계정 정책 적용)
 
 [Supabase]  Auth(Apple) + Postgres(profiles, credit_ledger) + RLS + RPC
 ```
@@ -84,14 +84,14 @@ end $$;
 - 크레딧: cost 계산(OCR=페이지수, quiz=고정) → `spend_credits`(service_role 키=Worker 시크릿). -1이면 **402** `{error:"크레딧 부족"}`(Gemini 호출 안 함).
 - **예약→호출→실패 시 환불** 패턴으로 동시성 안전. (먼저 차감, Gemini 실패하면 `refund_credits`.)
 - AI Gateway 경유 유지.
-- `APP_TOKEN`/`X-Device-ID` + KV 일일한도: JWT/크레딧이 대체 → **제거 가능**(원하면 APP_TOKEN은 방어층으로 유지). GLOBAL_DAILY는 backstop으로 유지 권장.
+- `APP_TOKEN`은 보조 게이트로 유지 가능. `X-Device-ID` 경로는 JWT/크레딧이 대체해 제거. GLOBAL_DAILY는 backstop으로 유지 권장.
 - 새 시크릿: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` (**절대 앱에 넣지 말 것**).
 
 ## 7. iOS 앱 변경
 - 패키지: `supabase-swift`(SPM).
 - **로그인 화면**: Sign in with Apple(AuthenticationServices)로 idToken+nonce → `supabase.auth.signInWithIdToken(.init(provider:.apple, idToken:, nonce:))`. (Apple 토큰엔 이름이 없어 첫 로그인 시 클라에서 캡처해 저장.)
 - 세션: supabase-swift가 Keychain 저장/자동 갱신.
-- OCR/퀴즈 호출에 Bearer JWT 동봉 — `ProxyOCRProvider`/`ProxyQuizProvider`의 deviceID/appToken 자리를 토큰으로 교체.
+- OCR/퀴즈 호출에 Bearer JWT 동봉 — `ProxyOCRProvider`/`ProxyQuizProvider`에서 앱 토큰은 보조 게이트로만 유지.
 - 메인/설정에 **크레딧 잔액 표시**(profiles SELECT, RLS로 본인 것만).
 - **402(크레딧 부족) 처리**: `LumarkError` 케이스 추가 → "본인 키 쓰기" / "내일 다시" 유도.
 - 엔터틀먼트: Sign in with Apple capability + Apple Developer App ID + Supabase Apple provider(Services ID/Key) 설정.
@@ -101,15 +101,15 @@ end $$;
 |---|---|---|
 | 정리본(OCR) | 페이지당 1 | 1회 변환 최대 20p → 최대 20 |
 | 퀴즈 생성 | 회당 2 | 텍스트 1콜 |
-| 본인 키 사용 | 0 | 프록시 우회 = 무제한 |
+| 본인 키 사용 | 0 | 프록시 우회, Google 계정 정책 적용 |
 
-- 무료: **가입 보너스 200 + 매월 충전 100**(top-up·안 쌓임). 넉넉한 첫인상 + 지속가능한 월 한도(월=누적 비용 동력이라 낮춤). 헤비 유저는 본인 키(무제한).
+- 무료: **가입 보너스 200 + 매월 충전 100**(top-up·안 쌓임). 넉넉한 첫인상 + 지속가능한 월 한도(월=누적 비용 동력이라 낮춤). 헤비 유저는 본인 키 경로 사용 가능.
 - 실제 Gemini 원가는 매우 낮음(Flash Lite ≈ 페이지당 $0.0004) → 크레딧은 **원가 회수가 아니라 남용·공정성 상한**.
 - 유료 충전(StoreKit IAP): **보류**(수요 생기면). 우선 무료한도 + 본인키.
 
 ## 9. 1인 1계정 / 남용 방지
 - Apple ID당 1 user(Supabase가 `sub`로 dedup) — 현실적 상한(완벽X, 한 사람 여러 Apple ID 가능).
-- **남용 벡터 = 무료 크레딧 노린 다계정.** 완화: 무료 한도 과하지 않게 / Worker `GLOBAL_DAILY` backstop / device-id를 보조 탐지 신호로 기록 / 정 필요하면 전화 인증(SMS 비용·마찰, v1 비권장).
+- **남용 벡터 = 무료 크레딧 노린 다계정.** 완화: 무료 한도 과하지 않게 / Worker `GLOBAL_DAILY` backstop / 정 필요하면 전화 인증(SMS 비용·마찰, v1 비권장).
 
 ## 10. 보안 / 프라이버시
 - `service_role` 키는 **Worker 시크릿에만**. 앱엔 anon 키 + 사용자 JWT만.
@@ -132,7 +132,7 @@ end $$;
 1. 아키텍처: **Path A** (Supabase 인증+크레딧 + 기존 Worker 프록시 유지).
 2. 인증: **Sign in with Apple만.**
 3. 로그인 범위: **Lumark Cloud 쓸 때만.** 본인 키·Apple Vision은 로그인 없이 익명 사용.
-4. 크레딧: **가입 보너스 200 + 매월 충전 100**(top-up), OCR **1/페이지**, 퀴즈 **2/회**, 본인 키 **무제한**.
+4. 크레딧: **가입 보너스 200 + 매월 충전 100**(top-up), OCR **1/페이지**, 퀴즈 **2/회**, 본인 키는 Lumark 크레딧 미사용.
 5. 유료 충전(IAP): **없음** (현역 군 복무 중 수익 불가 — 전역 후 이 크레딧 위에 얹는 건 구조상 가능).
 6. 1인 1계정: Apple ID 기준(현실적 상한). 전화 인증은 남용 관찰되면 추후.
 

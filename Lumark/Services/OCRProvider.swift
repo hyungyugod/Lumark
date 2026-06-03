@@ -31,7 +31,7 @@ enum OCREngine: String, Codable, CaseIterable, Sendable, Identifiable {
         case .lumarkCloud:
             return "로그인하면 무료 크레딧으로 바로 사용해요. 한국어 형광펜 인식 정확도가 가장 높아요. 하루 사용량 한도가 있어요."
         case .geminiFlash:
-            return "본인 Google AI Studio 키를 직접 등록해 한도 없이 사용해요(비용 본인 부담)."
+            return "본인 Google AI Studio 키를 직접 등록해 Lumark 크레딧 없이 사용해요. Google API 사용량·비용 정책은 본인 계정을 따라요."
         case .appleVision:
             return "인터넷 없이 기기에서 무료로 처리해요. 다만 정확도가 낮아 형광펜·손글씨를 놓칠 수 있어요."
         }

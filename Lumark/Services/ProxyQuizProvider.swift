@@ -3,7 +3,7 @@
 //  Lumark
 //
 //  Lumark Cloud 프록시 경유 퀴즈 생성. 키 없이, 서버 한도 안에서.
-//  요청: POST {endpoint} { "text": "...", "count": N }  헤더 X-Device-ID
+//  요청: POST {endpoint} { "text": "...", "count": N }
 //  응답: { "cards": [{ "question", "answer" }] }
 //
 
@@ -58,7 +58,6 @@ struct ProxyQuizProvider: QuizProvider {
         req.httpMethod = "POST"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        req.setValue(OCRPreferences.shared.deviceID, forHTTPHeaderField: "X-Device-ID")
         if let appToken, !appToken.isEmpty {
             req.setValue(appToken, forHTTPHeaderField: "X-App-Token")
         }

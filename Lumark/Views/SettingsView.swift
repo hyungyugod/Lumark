@@ -113,7 +113,7 @@ struct SettingsView: View {
                         .foregroundStyle(Palette.ink)
                 }
 
-                Text("정리본 1페이지 = 1 · 퀴즈 1회 = 2. 매달 충전돼요. 내 Gemini 키를 쓰면 크레딧 없이 무제한이에요.")
+                Text("정리본 1페이지 = 1 · 퀴즈 1회 = 2. 매달 충전돼요. 내 Gemini 키를 쓰면 Lumark 크레딧 없이 처리돼요.")
                     .font(.system(size: 11.5))
                     .foregroundStyle(Palette.subtle)
 
@@ -407,7 +407,7 @@ struct SettingsView: View {
                         HStack(spacing: 4) {
                             Image(systemName: "arrow.up.forward.square")
                                 .font(.system(size: 11))
-                            Text("Google AI Studio에서 키 발급 (무료)")
+                            Text("Google AI Studio에서 키 발급")
                                 .font(.system(size: 12))
                         }
                         .foregroundStyle(Palette.brown)
@@ -651,7 +651,7 @@ private struct GeminiKeyGuideSheet: View {
                             Text("내 Gemini API 키 발급 방법")
                                 .font(.system(size: 19, weight: .bold))
                                 .foregroundStyle(Palette.ink)
-                            Text("Google AI Studio에서 무료로 만들 수 있어요. 1~2분이면 됩니다.")
+                            Text("Google 계정에서 만들 수 있어요. Google API 사용량·비용 정책은 계정 상태에 따라 달라질 수 있습니다.")
                                 .font(.system(size: 13))
                                 .foregroundStyle(Palette.subtle)
                                 .lineSpacing(2)

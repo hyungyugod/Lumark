@@ -379,7 +379,7 @@ struct ResultView: View {
         MarkdownDocument.from(note)
     }
 
-    /// 퀴즈 버튼에 띄울 크레딧 비용. 만들기 모드 + Lumark Cloud일 때만 (본인 키=무제한이면 숨김).
+    /// 퀴즈 버튼에 띄울 크레딧 비용. 만들기 모드 + Lumark Cloud일 때만 (본인 키는 Lumark 크레딧 미사용).
     /// 값 2는 Worker COST_QUIZ 기본값과 맞춤.
     private var quizCostBadge: Int? {
         guard note.flashcards.isEmpty else { return nil }
