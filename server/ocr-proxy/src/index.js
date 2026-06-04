@@ -121,6 +121,38 @@ function quizSchema(kind) {
   };
 }
 
+// ── Summary (정리 텍스트 → AI가 재구조화한 정리본 마크다운)
+function summaryPrompt() {
+  return `아래는 학생이 형광펜으로 정리한 학습 노트입니다. 이 내용을 시험 공부에 바로 쓸 수 있도록 더 명확한 구조의 마크다운 "정리본"으로 다시 써주세요.
+
+[가장 중요 — 원본 보존]
+- 원본의 논리 구조(인과·흐름·조건·의사결정)는 그대로 보존하세요. 메커니즘이 결론보다 핵심입니다. 축약·변형 금지.
+- 원본에 있는 예시·수치 계산 과정·비유·풀어 쓴 설명은 생략하지 말고 유지하세요.
+- 노트에 실제로 있는 내용만 사용하세요. 새로운 사실·정의·예시를 지어내지 마세요.
+
+[재구조화 방법]
+- 관련된 내용을 주제별로 묶고 제목(##)·소제목(###)·글머리표(-)로 위계를 잡으세요.
+- 어렵거나 압축된 표현은 의미가 바뀌지 않는 선에서 쉬운 말을 함께 적어주세요(원래 용어는 유지).
+- 흐름이 있는 내용은 순서가 드러나게 정리하세요.
+
+[불확실 항목]
+- 근거가 불분명하거나 원본만으로 판단하기 어려운 항목은 임의로 고치거나 지우지 말고, 맨 끝에 "## 확인 필요" 섹션으로 따로 모아 적으세요.
+
+[출력 형식]
+- 마크다운 본문만. 노트 제목을 최상단 #으로 다시 쓰지 말고 ## 섹션부터 시작하세요.
+- 한국어로.
+
+응답: {"summary_markdown": "여기에 마크다운 정리본 전체"}`;
+}
+
+function summarySchema() {
+  return {
+    type: "object",
+    properties: { summary_markdown: { type: "string" } },
+    required: ["summary_markdown"],
+  };
+}
+
 // ── 헬퍼
 
 const MAX_JSON_BODY_BYTES = 9_000_000;
@@ -213,6 +245,7 @@ function globalInfo(env, used) {
 /** 동작별 크레딧 비용. env로 덮어쓰기 가능. */
 function costOf(env, kind) {
   if (kind === "ocr") return parseInt(env.COST_OCR || "1", 10);
+  if (kind === "summary") return parseInt(env.COST_SUMMARY || "5", 10);
   return parseInt(env.COST_QUIZ || "2", 10);
 }
 
@@ -267,8 +300,7 @@ async function refundCredits(env, userId, amount, ref) {
 }
 
 /** Gemini generateContent 호출 (AI Gateway 경유 가능). inner JSON 문자열을 파싱해 반환. */
-async function callGemini(env, parts, schema, maxOutputTokens) {
-  const model = env.MODEL || "gemini-2.5-flash-lite";
+async function callGemini(env, parts, schema, maxOutputTokens, model = env.MODEL || "gemini-2.5-flash-lite") {
   const useGateway =
     env.CF_ACCOUNT_ID && env.CF_GATEWAY && !String(env.CF_ACCOUNT_ID).startsWith("CHANGE");
   const base = useGateway
@@ -378,6 +410,36 @@ async function handleQuiz(env, userId, body) {
   return json(200, { cards, credits: balance, ...globalInfo(env, used) });
 }
 
+async function handleSummary(env, userId, body) {
+  const text = body && body.text;
+  if (!text || typeof text !== "string" || text.trim() === "") {
+    return json(400, { error: "missing text" });
+  }
+  if (text.length > MAX_QUIZ_TEXT_CHARS) {
+    return json(413, { error: "정리할 텍스트가 너무 길어요. 노트를 나눠서 시도해주세요." });
+  }
+
+  const cost = costOf(env, "summary");
+  let balance;
+  try { balance = await spendCredits(env, userId, cost, "summary", null); }
+  catch (e) { console.log("spend summary failed:", e.message); return json(502, { error: "크레딧 처리에 문제가 생겼어요. 잠시 후 다시 시도해주세요." }); }
+  if (balance === -1) {
+    return json(402, { error: "크레딧이 부족해요. 내일 충전되거나, 설정에서 내 Gemini 키로 쓸 수 있어요.", needed: cost });
+  }
+  const parts = [{ text: summaryPrompt() + "\n\n---\n\n" + text }];
+  // 정리본은 출력이 길어 8192. 모델은 env.MODEL_SUMMARY(없으면 기본값).
+  const res = await callGemini(env, parts, summarySchema(), 8192, env.MODEL_SUMMARY);
+  if (res.error) { await refundCredits(env, userId, cost, "summary"); return res.error; }
+
+  const markdown = typeof res.parsed?.summary_markdown === "string" ? res.parsed.summary_markdown.trim() : "";
+  if (markdown === "") {
+    await refundCredits(env, userId, cost, "summary");   // 빈 결과 = 과금 안 함
+    return json(502, { error: "AI 정리본을 만들지 못했어요. 잠시 후 다시 시도해주세요." });
+  }
+  const used = await bumpGlobal(env);   // AI 처리 성공 후 전역 사용량 1건 카운트(+ 누적값)
+  return json(200, { summary_markdown: markdown, credits: balance, ...globalInfo(env, used) });
+}
+
 // ── 진입점
 
 export default {
@@ -386,7 +448,7 @@ export default {
 
     const url = new URL(request.url);
     const route = url.pathname;
-    if (route !== "/ocr" && route !== "/quiz" && route !== "/usage") {
+    if (route !== "/ocr" && route !== "/quiz" && route !== "/summary" && route !== "/usage") {
       return json(404, { error: "not found" });
     }
 
@@ -420,6 +482,7 @@ export default {
     const body = parsed.body;
 
     if (route === "/ocr") return handleOCR(env, auth.userId, body);
+    if (route === "/summary") return handleSummary(env, auth.userId, body);
     return handleQuiz(env, auth.userId, body);
   },
 };

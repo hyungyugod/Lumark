@@ -64,6 +64,10 @@ struct ResultView: View {
     @State private var showingSettings = false
     @State private var showingQuizKindPicker = false
 
+    // AI 정리본
+    @State private var isGeneratingSummary = false
+    @State private var showingSummary = false
+
     /// 이 Note가 SwiftData 컨테이너에 이미 영속화돼있는가.
     /// 영속화 안 됐으면 저장 버튼 노출.
     private var isPersisted: Bool {
@@ -109,11 +113,13 @@ struct ResultView: View {
                     }
                     .padding(.horizontal, 22)
                     .padding(.top, 20)
-                    .padding(.bottom, quizCostBadge == nil ? 120 : 146) // action bar + quiz credit note 공간
+                    .padding(.bottom, bottomInset) // 액션바 + AI 정리본 버튼 + (퀴즈 크레딧 안내) 공간
                 }
             }
 
             VStack(spacing: 6) {
+                aiSummaryButton
+
                 if let cost = quizCostBadge {
                     Text("퀴즈 생성 1회 = \(cost)크레딧")
                         .font(.system(size: 11, weight: .medium))
@@ -158,6 +164,9 @@ struct ResultView: View {
             // 퀴즈 — 만들기/보기는 하단 액션바. 메뉴엔 카드 있을 때 "다시 만들기"만.
             if !note.flashcards.isEmpty {
                 Button("퀴즈 다시 만들기") { showingQuizKindPicker = true }
+            }
+            if note.aiSummaryMarkdown != nil {
+                Button("AI 정리본 다시 만들기") { generateSummary() }
             }
             Button("이름 변경") {
                 editingTitle = note.title
@@ -214,6 +223,16 @@ struct ResultView: View {
                 }
             }
         }
+        .overlay {
+            if isGeneratingSummary {
+                ZStack {
+                    Color.black.opacity(0.18).ignoresSafeArea()
+                    ProgressView("AI 정리본 만드는 중…")
+                        .padding(20)
+                        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
+                }
+            }
+        }
         .fullScreenCover(isPresented: $showingStudy) {
             FlashcardStudyView(
                 cards: note.flashcards.sorted { $0.createdAt < $1.createdAt },
@@ -231,6 +250,16 @@ struct ResultView: View {
         }
         .sheet(isPresented: $showingSettings) {
             SettingsView()
+        }
+        .sheet(isPresented: $showingSummary) {
+            if let md = note.aiSummaryMarkdown {
+                AISummaryView(
+                    title: note.title,
+                    markdown: md,
+                    createdAt: note.aiSummaryCreatedAt,
+                    onClose: { showingSummary = false }
+                )
+            }
         }
         .confirmationDialog("어떤 퀴즈를 만들까요?", isPresented: $showingQuizKindPicker, titleVisibility: .visible) {
             Button("주관식 — 질문에 답하기") { generateQuiz(kind: .qa) }
@@ -386,6 +415,58 @@ struct ResultView: View {
         return OCRPreferences.shared.engine == .lumarkCloud ? 2 : nil
     }
 
+    /// AI 정리본 만들기 비용. 아직 안 만들었고 Lumark Cloud일 때만(본인 키는 Lumark 크레딧 미사용).
+    /// 값 5는 Worker COST_SUMMARY 기본값과 맞춤.
+    private var summaryCostBadge: Int? {
+        guard note.aiSummaryMarkdown == nil else { return nil }
+        return OCRPreferences.shared.engine == .lumarkCloud ? 5 : nil
+    }
+
+    /// 본문 스크롤 하단 여백 — 떠 있는 액션바(+AI 정리본 버튼 +퀴즈 크레딧 안내)에 가리지 않게.
+    private var bottomInset: CGFloat {
+        var h: CGFloat = 120              // 액션바
+        h += 52                           // AI 정리본 버튼(항상 표시)
+        if quizCostBadge != nil { h += 26 }   // 퀴즈 크레딧 안내 pill
+        return h
+    }
+
+    /// 액션바 위에 떠 있는 'AI 정리본 만들기 / 보기' 버튼.
+    /// 퀴즈(브라운 primary)와 구분되도록 surface 배경 + 브라운 외곽선 스타일.
+    private var aiSummaryButton: some View {
+        let hasSummary = note.aiSummaryMarkdown != nil
+        return Button {
+            if hasSummary { showingSummary = true } else { generateSummary() }
+        } label: {
+            HStack(spacing: 7) {
+                Image(systemName: hasSummary ? "doc.text.magnifyingglass" : "sparkles")
+                    .font(.system(size: 14, weight: .semibold))
+                Text(hasSummary ? "AI 정리본 보기" : "AI 정리본 만들기")
+                    .font(.system(size: 14, weight: .semibold))
+                if let cost = summaryCostBadge {
+                    HStack(spacing: 2) {
+                        Image(systemName: "creditcard.fill").font(.system(size: 8))
+                        Text("\(cost)크레딧").font(.system(size: 10.5, weight: .bold))
+                    }
+                    .foregroundStyle(Palette.cream)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(Capsule().fill(Palette.brown))
+                }
+            }
+            .foregroundStyle(Palette.brown)
+            .padding(.horizontal, 16)
+            .frame(maxWidth: .infinity, minHeight: 42)
+            .background(Capsule().fill(Palette.surface))
+            .overlay(Capsule().strokeBorder(Palette.brown.opacity(0.4), lineWidth: 1.5))
+            .shadow(color: .black.opacity(0.12), radius: 12, x: 0, y: 5)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(
+            hasSummary ? "AI 정리본 보기"
+                       : (summaryCostBadge.map { "AI 정리본 만들기, \($0)크레딧 사용" } ?? "AI 정리본 만들기")
+        )
+    }
+
     /// 정리된 노트 텍스트로 Q&A 카드 생성 → 저장 → 학습 화면.
     private func generateQuiz(kind: FlashcardKind) {
         guard !isGeneratingQuiz else { return }
@@ -450,6 +531,71 @@ struct ResultView: View {
                 await MainActor.run {
                     isGeneratingQuiz = false
                     activeError = .wrapped(code: "QUIZ", message: error.localizedDescription)
+                }
+            }
+        }
+    }
+
+    /// 정리된 노트 텍스트로 AI 정리본 생성 → 노트에 저장 → 뷰어. (generateQuiz와 같은 골격)
+    private func generateSummary() {
+        guard !isGeneratingSummary else { return }
+        // 엔진이 못 만드는 경우 로딩 없이 바로 안내(깜빡임 방지). 판정은 퀴즈와 동일.
+        switch SummaryGenerator.support() {
+        case .ready:
+            break
+        case .needsLogin:
+            activeError = .wrapped(code: "SUMMARY", message: "Lumark Cloud로 AI 정리본을 만들려면 로그인이 필요해요. 설정 → 계정에서 로그인하거나, '내 Gemini 키'로 바꿔 주세요.")
+            return
+        case .needsKey:
+            activeError = .wrapped(code: "SUMMARY", message: "Gemini API 키가 없어요. 설정 → OCR 엔진에서 키를 등록하거나 'Lumark Cloud' 엔진을 쓰면 바로 만들 수 있어요.")
+            return
+        case .unsupportedEngine:
+            activeError = .wrapped(code: "SUMMARY", message: "지금 OCR 엔진(Apple Vision)으로는 AI 정리본을 못 만들어요. 설정 → OCR 엔진에서 'Lumark Cloud'나 '내 Gemini 키'로 바꿔 주세요.")
+            return
+        }
+        // 정리본은 노트 속성으로 저장되므로 먼저 영속화. 저장 실패하면 중단.
+        if !isPersisted {
+            guard save() else { return }
+        }
+        isGeneratingSummary = true
+
+        let prefs = ExportPreferences.shared
+        let text = MarkdownExporter.export(currentDoc, dialect: prefs.dialect, includePageMap: false)
+        let provider = SummaryGenerator.selectedProvider()
+        let targetNote = note
+
+        Task {
+            do {
+                let markdown = try await provider.generate(from: text)
+                await MainActor.run {
+                    isGeneratingSummary = false
+                    let trimmed = markdown.trimmingCharacters(in: .whitespacesAndNewlines)
+                    guard !trimmed.isEmpty else {
+                        activeError = .wrapped(code: "SUMMARY-EMPTY", message: "정리할 내용이 부족해요.")
+                        return
+                    }
+                    targetNote.aiSummaryMarkdown = trimmed
+                    targetNote.aiSummaryCreatedAt = .now
+                    try? modelContext.save()
+                    showToast("AI 정리본을 만들었어요")
+                    showingSummary = true
+                }
+            } catch let e as QuizError {
+                await MainActor.run {
+                    isGeneratingSummary = false
+                    // 크레딧 부족(CREDITS)·전역 한도(BUSY)면 본인 키 전환 탈출구 노출.
+                    let code: String
+                    switch e {
+                    case .creditsExhausted: code = "CREDITS"
+                    case .serviceBusy:      code = "BUSY"
+                    default:                code = "SUMMARY"
+                    }
+                    activeError = .wrapped(code: code, message: e.errorDescription ?? "AI 정리본 생성 실패")
+                }
+            } catch {
+                await MainActor.run {
+                    isGeneratingSummary = false
+                    activeError = .wrapped(code: "SUMMARY", message: error.localizedDescription)
                 }
             }
         }

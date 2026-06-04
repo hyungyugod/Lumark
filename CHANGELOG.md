@@ -2,6 +2,13 @@
 
 ## [Unreleased] — v0.1 (MVP) 작업 중
 
+### Added (AI 정리본 — 2026-06-04)
+- **AI 정리본.** 노트를 AI가 재구조화한 마크다운 "정리본"으로 다시 써주는 기능. 형광펜 정리본(퀴즈와 동일 입력)을 `gemini-2.5-flash-lite`로 논리·예시를 보존하며 주제별 위계로 재정리하고, 근거 불명 항목은 "확인 필요" 섹션으로 분리. 결과 화면 액션바 위 "AI 정리본 만들기" 버튼 → 생성 후 시트 뷰어(헤더/불릿 렌더링·복사·공유), "다시 만들기"는 더보기 메뉴.
+- **비용·경로.** Lumark Cloud 1회 = 5크레딧(`COST_SUMMARY` — Worker env로 조정, 앱 재배포 불필요). 본인 Gemini 키 경로도 지원(Lumark 크레딧 미사용). 실패 시 크레딧 자동 환불, 잔액 부족(402)·전역 한도(429)는 퀴즈와 동일 처리(본인 키 전환 탈출구 노출).
+- **서버.** Worker에 `POST /summary` 라우트 추가(`handleQuiz` 패턴 복제). `callGemini` 모델 인자화 — 기본값 유지로 OCR/Quiz 무영향. env `MODEL_SUMMARY`/`COST_SUMMARY` 추가. 빈 결과는 환불 후 502.
+- **데이터.** `Note`에 옵셔널 `aiSummaryMarkdown`/`aiSummaryCreatedAt` 추가(SwiftData 경량 마이그레이션). 노트당 1개(덮어쓰기).
+- **재사용.** `SummaryError`를 새로 만들지 않고 `QuizError`·`QuizGenerator.support()`·`ProxyQuizProvider.isRetryable`를 재사용해 신규 코드 최소화.
+
 ### Added (접근성 + 데이터 안내 — 2026-06-01)
 - **노트 기기 저장 경고.** 설정 정보에 "노트는 이 기기에만 저장 — 앱 삭제/폰 교체 시 사라짐, 자동 백업 없음. 중요한 건 공유/PDF로 내보내두세요" 안내(아직 클라우드 백업 미구현이라 명시).
 - **큰 글씨(Dynamic Type) 본문 대응.** 노트 본문(제목·섹션·글머리표)과 플래시카드 질문/정답을 `@ScaledMetric`으로 전환 — "큰 텍스트" 접근성 설정에 따라 읽기 영역이 커짐. (나머지 chrome은 추후 단계.)

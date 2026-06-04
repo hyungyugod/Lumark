@@ -9,6 +9,9 @@ GLOBAL_DAILY = "3000"
 # 동작별 크레딧 비용.
 COST_OCR = "1"
 COST_QUIZ = "2"
+COST_SUMMARY = "5"
+# AI 정리본 모델. 가격·품질 조정은 앱 재배포 없이 wrangler deploy로만.
+MODEL_SUMMARY = "gemini-2.5-flash-lite"
 # AI Gateway 경유 (Worker→Gemini 지역 차단 회피). 대시보드에서 게이트웨이 생성 후 채움.
 # CF_ACCOUNT_ID: `npx wrangler whoami` 의 Account ID. CF_GATEWAY: 만든 게이트웨이 이름.
 CF_ACCOUNT_ID = "fb8d5badc96f29c766dbc8eb0e10b512"

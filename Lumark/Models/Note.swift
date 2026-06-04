@@ -27,6 +27,11 @@ final class Note {
     var originalFilename: String?
     var isFavorite: Bool = false
 
+    /// AI가 재구조화한 정리본(마크다운 통째). 노트당 1개 — 다시 만들면 덮어씀.
+    /// 옵셔널이라 기존 노트는 nil → SwiftData 경량 마이그레이션(Flashcard 옵셔널 필드와 동일 방식).
+    var aiSummaryMarkdown: String?
+    var aiSummaryCreatedAt: Date?
+
     @Relationship(deleteRule: .cascade, inverse: \Page.note)
     var pages: [Page] = []
 
