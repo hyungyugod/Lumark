@@ -443,6 +443,22 @@ async function handleSummary(env, userId, body) {
 // ── 진입점
 
 export default {
+  // ── Cron: Supabase 무료 플랜 keepalive ──────────────────────────────
+  // 무료 프로젝트는 7일간 요청이 전혀 없으면 자동 일시정지됨. wrangler.toml의 스케줄
+  // (매주 월 21:00 KST)에 맞춰 profiles에 가벼운 SELECT 1건을 날려 DB를 깨워 둔다.
+  // service_role 키라 RLS 우회 → 실제 행 1건을 읽어 확실한 DB 활동으로 기록됨.
+  async scheduled(event, env, _ctx) {
+    try {
+      const resp = await fetch(
+        `${env.SUPABASE_URL}/rest/v1/profiles?select=id&limit=1`,
+        { headers: { apikey: env.SUPABASE_SECRET, Authorization: `Bearer ${env.SUPABASE_SECRET}` } },
+      );
+      console.log("supabase keepalive", event.cron, resp.status);
+    } catch (e) {
+      console.log("supabase keepalive failed:", e && e.message);
+    }
+  },
+
   async fetch(request, env) {
     if (request.method !== "POST") return json(405, { error: "POST only" });
 

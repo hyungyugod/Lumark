@@ -2,6 +2,14 @@ name = "lumark-ocr-proxy"
 main = "src/index.js"
 compatibility_date = "2026-05-01"
 
+# Supabase 무료 플랜 keepalive.
+# 무료 프로젝트는 7일간 요청이 전혀 없으면 자동 일시정지(pause)됨. scheduled 핸들러가
+# profiles에 가벼운 SELECT 1건을 날려 DB를 깨워 둔다. cron은 UTC 기준.
+#   "0 12 * * 1" = 월 21:00 KST (메인)
+#   "0 4 * * 4"  = 목 13:00 KST (안전망 — 한 번 펑크 나도 간격이 7일을 안 넘게)
+[triggers]
+crons = ["0 12 * * 1", "0 4 * * 4"]
+
 # 전체 일일 backstop(안전망) — 계정 크레딧과 별개로 폭주 상한. 0이면 비활성.
 [vars]
 MODEL = "gemini-2.5-flash-lite"
